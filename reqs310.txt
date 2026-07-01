@@ -31,7 +31,7 @@ easydict==1.9
 egl-probe==1.0.2
 einops==0.4.1
 etils==1.5.2
-evdev==1.7.1
+evdev==1.8.0
 exceptiongroup==1.2.1
 executing==2.2.0
 fasteners==0.19

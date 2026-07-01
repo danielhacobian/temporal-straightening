@@ -6,4 +6,9 @@ data
 wandb
 checkpoints
 *.slurm
-*.sh
+*.shdata/
+osf_download/
+checkpoints/
+*.pth
+Miniconda3-latest-Linux-x86_64.sh
+.claude/

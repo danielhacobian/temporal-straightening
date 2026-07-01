@@ -18,6 +18,16 @@ echo ">> installing deps"
 pip install -q -r "$NFS/reqs310.txt"
 pip install -q "setuptools<81"   # wandb needs pkg_resources
 
+# --- headless rendering deps (local disk, reinstall each instance) ---
+# mujoco_py builds its EGL renderer on first import (needs GLEW headers) and
+# needs the NVIDIA EGL vendor lib, which the headless driver doesn't ship.
+if [ ! -e /usr/share/glvnd/egl_vendor.d/10_nvidia.json ]; then
+  echo ">> installing headless GL/EGL deps"
+  sudo apt-get update -qq
+  sudo apt-get install -y -qq libglew-dev libosmesa6-dev patchelf libegl1 \
+    "libnvidia-gl-$(nvidia-smi --query-gpu=driver_version --format=csv,noheader | cut -d. -f1)-server"
+fi
+
 # --- MuJoCo 210 (local disk, re-download if missing) ---
 if [ ! -d "$HOME/.mujoco/mujoco210" ]; then
   echo ">> installing MuJoCo 210"
