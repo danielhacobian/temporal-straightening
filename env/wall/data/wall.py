@@ -36,3 +36,8 @@ class WallDatasetConfig:
     train: bool = True
     repeat_actions: int = 1
 
+
+class WallDataset:
+    """Compatibility placeholder for legacy wall environment imports."""
+
+    pass

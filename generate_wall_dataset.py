@@ -27,6 +27,25 @@ def _visual_to_uint8_hwc(visual):
     return np.clip(arr, 0, 255).astype(np.uint8)
 
 
+def _canonical_visual(env: WallEnvWrapper, visual):
+    """Return visual observations as fixed-size HWC tensors."""
+    if not isinstance(visual, torch.Tensor):
+        visual = torch.as_tensor(visual)
+
+    if visual.ndim != 3:
+        raise ValueError(f"expected 3D visual observation, got shape {tuple(visual.shape)}")
+
+    if visual.shape[0] == 3:
+        return env.transform(visual).permute(1, 2, 0)
+
+    if visual.shape[-1] == 3:
+        if visual.shape[0] == env.transform.size[0] and visual.shape[1] == env.transform.size[1]:
+            return visual
+        return env.transform(visual.permute(2, 0, 1)).permute(1, 2, 0)
+
+    raise ValueError(f"unsupported visual observation shape {tuple(visual.shape)}")
+
+
 def _controller_action(state, goal, wall_x, door_y, wall_width):
     state_xy = np.asarray(state[:2], dtype=np.float32)
     goal_xy = np.asarray(goal[:2], dtype=np.float32)
@@ -81,7 +100,7 @@ def generate_episode(env: WallEnvWrapper, seed: int, episode_length: int):
 
     for t in range(episode_length):
         state_np = _to_numpy(state).astype(np.float32)
-        obses.append(_visual_to_uint8_hwc(obs["visual"]))
+        obses.append(_visual_to_uint8_hwc(_canonical_visual(env, obs["visual"])))
         states.append(state_np)
         wall_locations.append(float(env.wall_x.detach().cpu().item()))
         door_locations.append(float(env.hole_y.detach().cpu().item()))
