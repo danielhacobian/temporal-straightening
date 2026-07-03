@@ -4,7 +4,7 @@
 \usepackage{hyperref}
 \usepackage{amsmath}
 
-\title{Reproducing Temporal Straightening on Medium and Preparing Wall}
+\title{Reproducing Temporal Straightening on Medium and Wall}
 \author{Codex experiment report}
 \date{July 3, 2026}
 
@@ -12,26 +12,26 @@
 \maketitle
 
 \begin{abstract}
-We reproduced the Medium environment baseline for temporal straightening with gradient-descent planning, evaluated frozen DINO variants, and tested a speed-constancy ablation motivated by the gap between cosine curvature loss and the paper's constant-speed theoretical assumption. The completed Medium runs show equal success for authors-style patch straightening and frozen DINO patch features, while DINO CLS performs better in this small reproduction. Frozen-encoder speed ablations do not change measured latent geometry, which supports the critique but does not establish a fix. We therefore added trainable DINO-channel adapter ablations and Wall environment support; completion of those runs was blocked by the Modal workspace spend limit.
+We reproduced temporal straightening with gradient-descent planning on the Medium environment, ran DINO baselines, tested speed-constancy ablations, and completed Wall runs for authors-style straightening and DINO patch features. The Medium reproduction shows equal planner success for authors-style DINO patch cosine straightening and DINO patch without straightening, while DINO CLS performs better. A frozen-DINO speed ablation supports the critique that cosine straightening ignores speed variation, but cannot change measured frozen latent geometry. A trainable DINO-channel adapter ablation addresses that caveat: cosine improves directional straightness while worsening latent speed variation, speed-only improves speed regularity without improving straightness, and cosine plus speed gives the best curvature and mean state distance but not the best planner success. Wall authors and DINO patch runs both reach 0.02 planner success.
 \end{abstract}
 
 \section{Motivation}
 
-Temporal straightening argues that a representation is useful for planning when trajectories in latent space are locally straight. The paper operationalizes this by minimizing a cosine distance between consecutive latent velocity vectors,
+Temporal straightening argues that representation quality can be measured by how easy it makes planning. Pixel observations are encoded into latent states, and a gradient-descent planner optimizes actions in that latent space. The paper encourages local latent trajectories to be directionally straight by minimizing
 \[
   1 - \cos(z_{t+1} - z_t, z_{t+2} - z_{t+1}).
 \]
-This objective aligns directions but removes velocity magnitudes. A path can have zero directional curvature while alternating between large and small step sizes. The theoretical justification assumes constant latent speed, but the base loss does not enforce it.
+This aligns consecutive velocity vectors but removes velocity magnitude. Therefore a latent path can be directionally straight while alternating between fast and slow steps. The paper's theory assumes constant latent speed, but the cosine loss does not enforce it.
 
 \section{Methodology}
 
-All completed experiments used the Medium environment with 50 generated random-policy episodes of length 100, 20 training epochs, and gradient-descent planning with 50 evaluations and goal horizon 25. The baseline compared authors-style DINO patch cosine straightening, frozen DINO patch without straightening, and frozen DINO CLS without straightening.
+Medium experiments used 50 generated random-policy episodes of length 100, 20 training epochs, and gradient-descent planning with 50 evaluations and goal horizon 25. The baseline compared authors-style DINO patch cosine straightening, DINO patch without straightening, and DINO CLS without straightening.
 
-The speed ablation added penalties on variation in latent step magnitudes. Patch-token DINO used an aggregated speed penalty for patch features, while CLS used a direct speed penalty. We measured planner success, mean state distance, cosine curvature, path-to-endpoint ratio, latent speed coefficient of variation, speed p95/p05 ratio, and relative speed jump.
+The speed ablation added penalties on variation in consecutive latent step magnitudes. The first ablation used frozen DINO patch and CLS features. Because frozen encoders cannot change the measured latent geometry, we then ran a DINO-channel adapter ablation in which the DINO backbone remains frozen but the measured projection and aggregation path is trainable.
 
-After observing that frozen-DINO ablations could not alter measured encoder geometry, we launched a second ablation using \texttt{encoder=dino\_channel}. This keeps the DINO backbone frozen but trains the projector and aggregation MLP on the measured latent path, making it a more meaningful test of whether speed constancy changes latent geometry and planning.
+Wall used the same episode count, episode length, epoch count, and planner settings. The Wall run required code compatibility fixes for missing legacy imports and generated image shape normalization.
 
-\section{Results}
+\section{Medium Results}
 
 \begin{table}[h]
 \centering
@@ -47,31 +47,57 @@ Patch cosine+speed & DINO patch & \texttt{cos1e-1+aggspeed1e-1} & 20 & 0.2625 & 
 CLS speed & DINO CLS & \texttt{speed1e-1} & 20 & 0.0860 & 0.0754 & 0.22 \\
 \bottomrule
 \end{tabular}
-\caption{Completed Medium runs. Success is final planner success rate over 50 evaluations.}
+\caption{Completed Medium baseline and frozen-DINO ablation runs.}
 \end{table}
 
-The frozen patch family had identical latent metrics across authors-style cosine, no straightening, speed-only, and cosine-plus-speed variants: mean cosine curvature 1.3402, path-to-endpoint ratio 16.0212, latent speed CV 0.3973, and relative speed jump 0.3791. The CLS family similarly matched between no-straightening and speed settings, with mean cosine curvature 1.3533 and latent speed CV 0.3377.
+The frozen patch family had identical measured latent diagnostics across cosine, no-straightening, speed-only, and cosine-plus-speed variants: mean cosine curvature 1.3402, path-to-endpoint ratio 16.0212, latent speed CV 0.3973, and relative speed jump 0.3791. This confirms that frozen-feature ablations are not sufficient to test whether speed constancy can repair the latent geometry.
+
+\section{Adapter Ablation}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrrrr}
+\toprule
+Variant & Success & State dist & Curvature & Speed CV & Speed jump \\
+\midrule
+No straightening & 0.10 & 3.5815 & 1.3060 & 0.4577 & 0.4501 \\
+Cosine & 0.12 & 3.3451 & 1.0271 & 0.5772 & 0.6053 \\
+Speed-only & 0.14 & 3.4117 & 1.3431 & 0.4038 & 0.3865 \\
+Cosine+speed & 0.10 & 3.1176 & 0.9806 & 0.4914 & 0.4911 \\
+\bottomrule
+\end{tabular}
+\caption{DINO-channel adapter ablation. Speed-only latent diagnostics used 20 rollouts and an epoch-18 checkpoint; other diagnostics used 50 rollouts and epoch 20.}
+\end{table}
+
+The adapter ablation directly exhibits the cosine-loss caveat. Cosine straightening reduces curvature and path ratio, but increases speed variation. Speed-only reduces speed variation, but worsens curvature and path ratio. Cosine plus speed gives the best curvature, best path ratio, and best mean state distance, yet it does not improve planner success.
+
+\section{Wall Results}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{llllrrr}
+\toprule
+Variant & Encoder & Loss & Epoch & Train & Val & Success \\
+\midrule
+Authors approach & DINO patch & \texttt{cos1e-1} & 20 & 0.2824 & 0.2715 & 0.02 \\
+DINO patch & DINO patch & \texttt{False} & 20 & 0.1385 & 0.1209 & 0.02 \\
+\bottomrule
+\end{tabular}
+\caption{Completed Wall runs with 50 planner evaluations. Both variants had mean state distance 33.4643.}
+\end{table}
+
+Wall DINO without straightening trains to a lower validation loss than the authors-style cosine run, but both produce the same planner outcome: success rate 0.02, mean state distance 33.4643, mean visual distance 1.1894, and mean proprio distance 21.4001.
 
 \section{Image Evidence}
 
-Patch speed and patch cosine-plus-speed validation and rollout contact sheets are byte-identical. CLS contact sheets differ from patch contact sheets. This aligns with the numerical result: when the encoder family and frozen measured latent path are unchanged, the image evidence is unchanged; when the encoder changes from patch tokens to CLS, the images and planner metrics change.
-
-\section{Wall Reproduction}
-
-The Wall environment was not runnable from the checkout as received. The registered wrapper imports \texttt{env.wall.data.wall}, \texttt{env.wall.data.wall\_utils}, and \texttt{env.wall.data.single}, but those files were absent locally and in upstream. The Modal volume also did not contain \texttt{wall\_single}. We added the missing Wall data package, a deterministic \texttt{wall\_single} dataset generator, robust Wall image loading, and an environment switch in the Modal runner.
-
-The intended Wall smoke command was:
-\[
-\texttt{modal run modal\_medium\_runner.py --action run --environment wall --run-id wall-smoke-20260702-01 ...}
-\]
-but Modal rejected app creation with \texttt{workspace billing cycle spend limit reached}. Therefore, Wall Ours/DINO metrics remain pending.
+Patch speed and patch cosine-plus-speed Medium contact sheets are byte-identical, while CLS contact sheets differ from patch contact sheets. This aligns with the frozen-latent finding: unchanged frozen measured geometry yields unchanged image evidence, while changing encoder family changes the images and planner metrics. The Wall planner path produced logs and plan targets but no rendered image/contact-sheet media.
 
 \section{Discussion}
 
-The completed ablations indicate that speed constancy is a valid methodological concern, but the first frozen-DINO experiment is not a sufficient test of the remedy. The more meaningful test is the trainable adapter setup, because speed and cosine losses can affect the projected latent space that planning uses. Partial adapter training logs suggest the speed-only adapter had the lowest observed validation loss by epoch 17, but no planner or latent diagnostic conclusions should be drawn until the blocked runs finish.
+The experiments support the critique that cosine temporal straightening alone does not enforce the constant-speed condition used in the theoretical story. The adapter ablation is the most informative result: it separates directional straightness from speed regularity and shows that improving one does not automatically improve the other. However, planner success does not monotonically follow the straightness or speed metrics in these small runs. More seeds and larger datasets would be needed before claiming the speed penalty is a robust improvement.
 
 \section{Artifacts}
 
-Primary evidence files are under \texttt{modal\_evidence/}. The key summaries are \texttt{medium-full-20260702-01/combined\_results.json}, \texttt{medium-full-20260702-01/latent\_analysis.json}, \texttt{medium-ablations-20260702-01/combined\_medium\_results.json}, \texttt{medium-ablations-20260702-01/image\_evidence\_summary.json}, and \texttt{medium-adapter-ablations-20260702-01/partial\_adapter\_results.json}. Large checkpoint and tar files remain local and on the Modal volume but are not appropriate for a standard GitHub PR.
+Primary evidence files are under \texttt{modal\_evidence/}. Key files include \texttt{medium-full-20260702-01/combined\_results.json}, \texttt{medium-full-20260702-01/latent\_analysis.json}, \texttt{medium-ablations-20260702-01/combined\_medium\_results.json}, \texttt{medium-ablations-20260702-01/image\_evidence\_summary.json}, \texttt{medium-adapter-ablations-20260702-01/adapter\_results.json}, and \texttt{wall-full-20260703-01/wall\_results.json}. Large checkpoint archives and planner target pickles remain local or on the Modal volume and are not included in the PR.
 
 \end{document}
