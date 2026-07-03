@@ -143,7 +143,7 @@ class Trainer:
                 num_workers=self.cfg.env.num_workers,
                 collate_fn=None,
                 pin_memory=True,
-                persistent_workers=True,
+                persistent_workers=self.cfg.env.num_workers > 0,
             )
             for x in ["train", "valid"]
         }
