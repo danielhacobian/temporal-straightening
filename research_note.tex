@@ -3,6 +3,7 @@
 \usepackage{booktabs}
 \usepackage{hyperref}
 \usepackage{amsmath}
+\setlength{\emergencystretch}{3em}
 
 \title{Reproducing Temporal Straightening on Medium and Wall}
 \author{Codex experiment report}
@@ -35,6 +36,7 @@ Wall used the same episode count, episode length, epoch count, and planner setti
 
 \begin{table}[h]
 \centering
+\small
 \begin{tabular}{llllrrr}
 \toprule
 Variant & Encoder & Loss & Epoch & Train & Val & Success \\
@@ -98,6 +100,15 @@ The experiments support the critique that cosine temporal straightening alone do
 
 \section{Artifacts}
 
-Primary evidence files are under \texttt{modal\_evidence/}. Key files include \texttt{medium-full-20260702-01/combined\_results.json}, \texttt{medium-full-20260702-01/latent\_analysis.json}, \texttt{medium-ablations-20260702-01/combined\_medium\_results.json}, \texttt{medium-ablations-20260702-01/image\_evidence\_summary.json}, \texttt{medium-adapter-ablations-20260702-01/adapter\_results.json}, and \texttt{wall-full-20260703-01/wall\_results.json}. Large checkpoint archives and planner target pickles remain local or on the Modal volume and are not included in the PR.
+Primary evidence files are under \path{modal_evidence/}. Key files include:
+\begin{itemize}
+  \item \path{medium-full-20260702-01/combined_results.json}
+  \item \path{medium-full-20260702-01/latent_analysis.json}
+  \item \path{medium-ablations-20260702-01/combined_medium_results.json}
+  \item \path{medium-ablations-20260702-01/image_evidence_summary.json}
+  \item \path{medium-adapter-ablations-20260702-01/adapter_results.json}
+  \item \path{wall-full-20260703-01/wall_results.json}
+\end{itemize}
+Large checkpoint archives and planner target pickles remain local or on the Modal volume and are not included in the PR.
 
 \end{document}
