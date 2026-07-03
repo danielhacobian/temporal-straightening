@@ -1,0 +1,77 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{amsmath}
+
+\title{Reproducing Temporal Straightening on Medium and Preparing Wall}
+\author{Codex experiment report}
+\date{July 3, 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We reproduced the Medium environment baseline for temporal straightening with gradient-descent planning, evaluated frozen DINO variants, and tested a speed-constancy ablation motivated by the gap between cosine curvature loss and the paper's constant-speed theoretical assumption. The completed Medium runs show equal success for authors-style patch straightening and frozen DINO patch features, while DINO CLS performs better in this small reproduction. Frozen-encoder speed ablations do not change measured latent geometry, which supports the critique but does not establish a fix. We therefore added trainable DINO-channel adapter ablations and Wall environment support; completion of those runs was blocked by the Modal workspace spend limit.
+\end{abstract}
+
+\section{Motivation}
+
+Temporal straightening argues that a representation is useful for planning when trajectories in latent space are locally straight. The paper operationalizes this by minimizing a cosine distance between consecutive latent velocity vectors,
+\[
+  1 - \cos(z_{t+1} - z_t, z_{t+2} - z_{t+1}).
+\]
+This objective aligns directions but removes velocity magnitudes. A path can have zero directional curvature while alternating between large and small step sizes. The theoretical justification assumes constant latent speed, but the base loss does not enforce it.
+
+\section{Methodology}
+
+All completed experiments used the Medium environment with 50 generated random-policy episodes of length 100, 20 training epochs, and gradient-descent planning with 50 evaluations and goal horizon 25. The baseline compared authors-style DINO patch cosine straightening, frozen DINO patch without straightening, and frozen DINO CLS without straightening.
+
+The speed ablation added penalties on variation in latent step magnitudes. Patch-token DINO used an aggregated speed penalty for patch features, while CLS used a direct speed penalty. We measured planner success, mean state distance, cosine curvature, path-to-endpoint ratio, latent speed coefficient of variation, speed p95/p05 ratio, and relative speed jump.
+
+After observing that frozen-DINO ablations could not alter measured encoder geometry, we launched a second ablation using \texttt{encoder=dino\_channel}. This keeps the DINO backbone frozen but trains the projector and aggregation MLP on the measured latent path, making it a more meaningful test of whether speed constancy changes latent geometry and planning.
+
+\section{Results}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{llllrrr}
+\toprule
+Variant & Encoder & Loss & Epoch & Train & Val & Success \\
+\midrule
+Authors approach & DINO patch & \texttt{cos1e-1} & 20 & 0.2552 & 0.2385 & 0.14 \\
+DINO patch & DINO patch & \texttt{False} & 20 & 0.1195 & 0.1025 & 0.14 \\
+DINO CLS & DINO CLS & \texttt{False} & 20 & 0.0785 & 0.0691 & 0.22 \\
+Patch speed & DINO patch & \texttt{aggspeed1e-1} & 20 & 0.1268 & 0.1094 & 0.14 \\
+Patch cosine+speed & DINO patch & \texttt{cos1e-1+aggspeed1e-1} & 20 & 0.2625 & 0.2455 & 0.14 \\
+CLS speed & DINO CLS & \texttt{speed1e-1} & 20 & 0.0860 & 0.0754 & 0.22 \\
+\bottomrule
+\end{tabular}
+\caption{Completed Medium runs. Success is final planner success rate over 50 evaluations.}
+\end{table}
+
+The frozen patch family had identical latent metrics across authors-style cosine, no straightening, speed-only, and cosine-plus-speed variants: mean cosine curvature 1.3402, path-to-endpoint ratio 16.0212, latent speed CV 0.3973, and relative speed jump 0.3791. The CLS family similarly matched between no-straightening and speed settings, with mean cosine curvature 1.3533 and latent speed CV 0.3377.
+
+\section{Image Evidence}
+
+Patch speed and patch cosine-plus-speed validation and rollout contact sheets are byte-identical. CLS contact sheets differ from patch contact sheets. This aligns with the numerical result: when the encoder family and frozen measured latent path are unchanged, the image evidence is unchanged; when the encoder changes from patch tokens to CLS, the images and planner metrics change.
+
+\section{Wall Reproduction}
+
+The Wall environment was not runnable from the checkout as received. The registered wrapper imports \texttt{env.wall.data.wall}, \texttt{env.wall.data.wall\_utils}, and \texttt{env.wall.data.single}, but those files were absent locally and in upstream. The Modal volume also did not contain \texttt{wall\_single}. We added the missing Wall data package, a deterministic \texttt{wall\_single} dataset generator, robust Wall image loading, and an environment switch in the Modal runner.
+
+The intended Wall smoke command was:
+\[
+\texttt{modal run modal\_medium\_runner.py --action run --environment wall --run-id wall-smoke-20260702-01 ...}
+\]
+but Modal rejected app creation with \texttt{workspace billing cycle spend limit reached}. Therefore, Wall Ours/DINO metrics remain pending.
+
+\section{Discussion}
+
+The completed ablations indicate that speed constancy is a valid methodological concern, but the first frozen-DINO experiment is not a sufficient test of the remedy. The more meaningful test is the trainable adapter setup, because speed and cosine losses can affect the projected latent space that planning uses. Partial adapter training logs suggest the speed-only adapter had the lowest observed validation loss by epoch 17, but no planner or latent diagnostic conclusions should be drawn until the blocked runs finish.
+
+\section{Artifacts}
+
+Primary evidence files are under \texttt{modal\_evidence/}. The key summaries are \texttt{medium-full-20260702-01/combined\_results.json}, \texttt{medium-full-20260702-01/latent\_analysis.json}, \texttt{medium-ablations-20260702-01/combined\_medium\_results.json}, \texttt{medium-ablations-20260702-01/image\_evidence\_summary.json}, and \texttt{medium-adapter-ablations-20260702-01/partial\_adapter\_results.json}. Large checkpoint and tar files remain local and on the Modal volume but are not appropriate for a standard GitHub PR.
+
+\end{document}

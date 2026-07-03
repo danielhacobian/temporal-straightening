@@ -53,6 +53,8 @@ class VWorldModel(nn.Module):
         self.straighten = False
         self.straighten_scale = 0.0
         self.curvature_mode = None
+        self.speed_constancy_scale = 0.0
+        self.speed_constancy_mode = None
         self.stop_grad = bool(stop_grad)
         self.vcreg = bool(vcreg)
         self.std_coeff = float(vcreg_std_coeff)
@@ -63,16 +65,28 @@ class VWorldModel(nn.Module):
             )
 
         if isinstance(straighten, str):
-            if straighten.startswith("aggcos"):
-                suffix = straighten.replace("aggcos", "")
-                self.straighten_scale = float(suffix) if suffix else 1.0
-                self.curvature_mode = "aggcos"
-            elif straighten.startswith("cos"):
-                suffix = straighten.replace("cos", "")
-                self.straighten_scale = float(suffix) if suffix else 1.0
-                self.curvature_mode = "cos"
+            for token in straighten.split("+"):
+                if token.startswith("aggcos"):
+                    suffix = token.replace("aggcos", "", 1)
+                    self.straighten_scale = float(suffix) if suffix else 1.0
+                    self.curvature_mode = "aggcos"
+                elif token.startswith("cos"):
+                    suffix = token.replace("cos", "", 1)
+                    self.straighten_scale = float(suffix) if suffix else 1.0
+                    self.curvature_mode = "cos"
+                elif token.startswith("aggspeed"):
+                    suffix = token.replace("aggspeed", "", 1)
+                    self.speed_constancy_scale = float(suffix) if suffix else 1.0
+                    self.speed_constancy_mode = "aggcos"
+                elif token.startswith("speed"):
+                    suffix = token.replace("speed", "", 1)
+                    self.speed_constancy_scale = float(suffix) if suffix else 1.0
+                    self.speed_constancy_mode = "cos"
 
         self.straighten = self.curvature_mode is not None and self.straighten_scale > 0
+        self.speed_constancy = (
+            self.speed_constancy_mode is not None and self.speed_constancy_scale > 0
+        )
 
         log.info("num_action_repeat: %s", self.num_action_repeat)
         log.info("num_proprio_repeat: %s", self.num_proprio_repeat)
@@ -89,6 +103,14 @@ class VWorldModel(nn.Module):
             )
         else:
             log.info("Straightening disabled")
+        if self.speed_constancy:
+            log.info(
+                "Speed constancy enabled: mode=%s, scale=%s",
+                self.speed_constancy_mode,
+                self.speed_constancy_scale,
+            )
+        else:
+            log.info("Speed constancy disabled")
         log.info("Stop-grad enabled: %s", self.stop_grad)
         log.info(
             "VCReg enabled: %s, apply_to=enc, std_coeff=%s, cov_coeff=%s",
@@ -294,6 +316,32 @@ class VWorldModel(nn.Module):
 
         return self._cos_curvature(v1, v2)
 
+    def total_speed_constancy(self, features, mode="cos", eps=1e-6, step_thresh=1e-6):
+        if features.shape[1] < 3:
+            raise ValueError(f"Features must have at least 3 frames for speed calculation, got {features.shape[1]}")
+
+        if mode == "aggcos":
+            if not hasattr(self.encoder, "agg"):
+                raise ValueError("speed mode 'aggcos' requires encoder.agg().")
+            b, t, p, d = features.shape
+            tokens = features.reshape(b * t, p, d)
+            z = self.encoder.agg(tokens).reshape(b, t, -1)
+            velocity = z[:, 1:] - z[:, :-1]
+        elif mode == "cos":
+            velocity = features[:, 1:] - features[:, :-1]
+        else:
+            raise ValueError(f"Unknown speed mode '{mode}'. Use 'cos' or 'aggcos'.")
+
+        speed = velocity.norm(dim=-1)
+        if speed.ndim == 3:
+            speed = rearrange(speed, "b t p -> (b p) t")
+        mean_speed = speed.mean(dim=1, keepdim=True)
+        loss = ((speed - mean_speed) / (mean_speed.detach() + eps)).pow(2)
+        if step_thresh > 0:
+            mask = mean_speed.squeeze(1) > step_thresh
+            loss = loss[mask]
+        return loss.mean()
+
     def forward(self, obs, act):
         """
         input:  obs (dict):  "visual", "proprio" (b, num_frames, 3, img_size, img_size)
@@ -368,6 +416,16 @@ class VWorldModel(nn.Module):
                 curvature_loss = self.total_curvature(feats, mode=self.curvature_mode)
                 loss = loss + curvature_loss * self.straighten_scale
                 loss_components["curvature_loss_used_for_training"] = curvature_loss
+
+            if self.speed_constancy and self.speed_constancy_scale > 0:
+                feats = self.visual_only(z)
+                speed_constancy_loss = self.total_speed_constancy(
+                    feats, mode=self.speed_constancy_mode
+                )
+                loss = loss + speed_constancy_loss * self.speed_constancy_scale
+                loss_components["speed_constancy_loss_used_for_training"] = (
+                    speed_constancy_loss
+                )
         else:
             visual_pred = None
             z_pred = None
