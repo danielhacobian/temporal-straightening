@@ -1,0 +1,100 @@
+{
+  "run_id": "medium-ratio-speed-20260707-01",
+  "run_root": "/mnt/ts/runs/medium-ratio-speed-20260707-01",
+  "environment": "point_maze_medium",
+  "analysis": "latent straightness and speed constancy diagnostics",
+  "max_rollouts": 20,
+  "metric_definitions": {
+    "cosine_curvature_mean": "mean(1 - cosine(v_t, v_t+1)); lower is directionally straighter",
+    "path_endpoint_ratio_mean": "latent path length divided by endpoint distance; 1 is globally straight",
+    "latent_speed_cv_time_mean": "mean over token trajectories of std(speed_t)/mean(speed_t); lower is more constant speed",
+    "speed_ratio_penalty_mean": "mean((sqrt(||v_t+1||/||v_t||) - sqrt(||v_t||/||v_t+1||))^2); lower is more locally constant speed",
+    "normalized_acceleration_mean": "mean speed_ratio_penalty + 2 * cosine_curvature; lower is lower normalized latent acceleration",
+    "latent_speed_p95_p05_ratio": "global p95 latent step speed divided by p05 latent step speed; lower means fewer speed lurches",
+    "relative_speed_jump_mean": "mean abs(speed_t+1 - speed_t) normalized by trajectory mean speed",
+    "state_position_speed_cv_mean": "same CV diagnostic on physical x/y state, for context only"
+  },
+  "results": [
+    {
+      "variant": "dino_channel_ratio_speed",
+      "encoder": "dino_channel",
+      "straighten": "ratiospeed1e-1",
+      "model_dir": "/mnt/ts/runs/medium-ratio-speed-20260707-01/checkpoints/dino_channel_ratio_speed/test/medium_ratiospeed1e-1_agg32_projchannel_dim8_hw14_sgTrue_lr1e-05",
+      "model_epoch": 20,
+      "rollouts_analyzed": 20,
+      "frames_per_rollout_mean": 20.0,
+      "metrics": {
+        "cosine_curvature_mean": 1.3435153646432623,
+        "cosine_alignment_mean": -0.34351536456551685,
+        "path_endpoint_ratio_mean": 17.56515439639286,
+        "latent_speed_mean": 0.25469778171283064,
+        "latent_speed_std": 0.17780096717209637,
+        "latent_speed_cv_time_mean": 0.3792889683944534,
+        "speed_ratio_penalty_mean": 0.3153457072752435,
+        "normalized_acceleration_mean": 3.002376436295047,
+        "latent_speed_p95_p05_ratio": 7.777793358351344,
+        "relative_speed_jump_mean": 0.3755529108098725,
+        "state_position_speed_cv_mean": 0.5612502947449685
+      },
+      "distributions": {
+        "cosine_curvature": {
+          "mean": 1.3435153646432623,
+          "std": 0.4025604231614418,
+          "p05": 0.5733108878135681,
+          "p50": 1.4117769002914429,
+          "p95": 1.877609944343567
+        },
+        "latent_speed": {
+          "mean": 0.25469778171283064,
+          "std": 0.17780096717209637,
+          "p05": 0.07698651030659676,
+          "p50": 0.20922910422086716,
+          "p95": 0.5987929463386539
+        },
+        "latent_speed_cv": {
+          "mean": 0.3792889683944534,
+          "std": 0.09438528770075147,
+          "p05": 0.25470239520072935,
+          "p50": 0.3666458874940872,
+          "p95": 0.5504229843616485
+        },
+        "speed_ratio_penalty": {
+          "mean": 0.3153457072752435,
+          "std": 0.6191746347480159,
+          "p05": 0.0008880732581019402,
+          "p50": 0.10846749320626259,
+          "p95": 1.2784552872180952
+        },
+        "normalized_acceleration": {
+          "mean": 3.002376436295047,
+          "std": 0.9583083661350809,
+          "p05": 1.390056973695755,
+          "p50": 3.085892677307129,
+          "p95": 4.204105877876282
+        },
+        "relative_speed_jump": {
+          "mean": 0.3755529108098725,
+          "std": 0.3021483625063695,
+          "p05": 0.02801367845386267,
+          "p50": 0.30871468782424927,
+          "p95": 0.9445515662431718
+        },
+        "path_endpoint_ratio": {
+          "mean": 17.56515439639286,
+          "std": 8.016840229445757,
+          "p05": 8.686867332458496,
+          "p50": 15.706985473632812,
+          "p95": 32.480646133422844
+        },
+        "state_position_speed_cv": {
+          "mean": 0.5612502947449685,
+          "std": 0.12923825649094628,
+          "p05": 0.3790682271122932,
+          "p50": 0.5667739808559418,
+          "p95": 0.7588764607906342
+        }
+      },
+      "elapsed_minutes": 2.03
+    }
+  ]
+}

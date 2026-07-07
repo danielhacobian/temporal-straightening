@@ -55,6 +55,10 @@ class VWorldModel(nn.Module):
         self.curvature_mode = None
         self.speed_constancy_scale = 0.0
         self.speed_constancy_mode = None
+        self.ratio_speed_scale = 0.0
+        self.ratio_speed_mode = None
+        self.normalized_accel_scale = 0.0
+        self.normalized_accel_mode = None
         self.stop_grad = bool(stop_grad)
         self.vcreg = bool(vcreg)
         self.std_coeff = float(vcreg_std_coeff)
@@ -82,10 +86,33 @@ class VWorldModel(nn.Module):
                     suffix = token.replace("speed", "", 1)
                     self.speed_constancy_scale = float(suffix) if suffix else 1.0
                     self.speed_constancy_mode = "cos"
+                elif token.startswith("aggratiospeed"):
+                    suffix = token.replace("aggratiospeed", "", 1)
+                    self.ratio_speed_scale = float(suffix) if suffix else 1.0
+                    self.ratio_speed_mode = "aggcos"
+                elif token.startswith("ratiospeed"):
+                    suffix = token.replace("ratiospeed", "", 1)
+                    self.ratio_speed_scale = float(suffix) if suffix else 1.0
+                    self.ratio_speed_mode = "cos"
+                elif token.startswith("aggnormacc"):
+                    suffix = token.replace("aggnormacc", "", 1)
+                    self.normalized_accel_scale = float(suffix) if suffix else 1.0
+                    self.normalized_accel_mode = "aggcos"
+                elif token.startswith("normacc"):
+                    suffix = token.replace("normacc", "", 1)
+                    self.normalized_accel_scale = float(suffix) if suffix else 1.0
+                    self.normalized_accel_mode = "cos"
 
         self.straighten = self.curvature_mode is not None and self.straighten_scale > 0
         self.speed_constancy = (
             self.speed_constancy_mode is not None and self.speed_constancy_scale > 0
+        )
+        self.ratio_speed = (
+            self.ratio_speed_mode is not None and self.ratio_speed_scale > 0
+        )
+        self.normalized_accel = (
+            self.normalized_accel_mode is not None
+            and self.normalized_accel_scale > 0
         )
 
         log.info("num_action_repeat: %s", self.num_action_repeat)
@@ -111,6 +138,22 @@ class VWorldModel(nn.Module):
             )
         else:
             log.info("Speed constancy disabled")
+        if self.ratio_speed:
+            log.info(
+                "Ratio speed constancy enabled: mode=%s, scale=%s",
+                self.ratio_speed_mode,
+                self.ratio_speed_scale,
+            )
+        else:
+            log.info("Ratio speed constancy disabled")
+        if self.normalized_accel:
+            log.info(
+                "Normalized acceleration enabled: mode=%s, scale=%s",
+                self.normalized_accel_mode,
+                self.normalized_accel_scale,
+            )
+        else:
+            log.info("Normalized acceleration disabled")
         log.info("Stop-grad enabled: %s", self.stop_grad)
         log.info(
             "VCReg enabled: %s, apply_to=enc, std_coeff=%s, cov_coeff=%s",
@@ -342,6 +385,60 @@ class VWorldModel(nn.Module):
             loss = loss[mask]
         return loss.mean()
 
+    def _velocity_from_features(self, features, mode, label):
+        if features.shape[1] < 3:
+            raise ValueError(
+                f"Features must have at least 3 frames for {label} calculation, got {features.shape[1]}"
+            )
+
+        if mode == "aggcos":
+            if not hasattr(self.encoder, "agg"):
+                raise ValueError(f"{label} mode 'aggcos' requires encoder.agg().")
+            b, t, p, d = features.shape
+            tokens = features.reshape(b * t, p, d)
+            z = self.encoder.agg(tokens).reshape(b, t, -1)
+            return z[:, 1:] - z[:, :-1]
+        if mode == "cos":
+            return features[:, 1:] - features[:, :-1]
+        raise ValueError(f"Unknown {label} mode '{mode}'. Use 'cos' or 'aggcos'.")
+
+    def total_ratio_speed_constancy(
+        self, features, mode="cos", eps=1e-6, step_thresh=1e-6
+    ):
+        velocity = self._velocity_from_features(features, mode, "ratio speed")
+        v1 = velocity[:, :-1]
+        v2 = velocity[:, 1:]
+        speed1 = v1.norm(dim=-1)
+        speed2 = v2.norm(dim=-1)
+        mask = (speed1 > step_thresh) & (speed2 > step_thresh)
+        ratio = (speed2 + eps) / (speed1 + eps)
+        loss = (torch.sqrt(ratio) - torch.rsqrt(ratio)).pow(2)
+        if step_thresh > 0:
+            loss = loss[mask]
+        if loss.numel() == 0:
+            return velocity.new_tensor(0.0)
+        return loss.mean()
+
+    def total_normalized_acceleration(
+        self, features, mode="cos", eps=1e-6, step_thresh=1e-6
+    ):
+        velocity = self._velocity_from_features(features, mode, "normalized acceleration")
+        v1 = velocity[:, :-1]
+        v2 = velocity[:, 1:]
+        speed1 = v1.norm(dim=-1)
+        speed2 = v2.norm(dim=-1)
+        mask = (speed1 > step_thresh) & (speed2 > step_thresh)
+        ratio = (speed2 + eps) / (speed1 + eps)
+        ratio_loss = (torch.sqrt(ratio) - torch.rsqrt(ratio)).pow(2)
+        cos = F.cosine_similarity(v1, v2, dim=-1, eps=eps)
+        curvature_loss = 1.0 - cos
+        loss = ratio_loss + 2.0 * curvature_loss
+        if step_thresh > 0:
+            loss = loss[mask]
+        if loss.numel() == 0:
+            return velocity.new_tensor(0.0)
+        return loss.mean()
+
     def forward(self, obs, act):
         """
         input:  obs (dict):  "visual", "proprio" (b, num_frames, 3, img_size, img_size)
@@ -425,6 +522,26 @@ class VWorldModel(nn.Module):
                 loss = loss + speed_constancy_loss * self.speed_constancy_scale
                 loss_components["speed_constancy_loss_used_for_training"] = (
                     speed_constancy_loss
+                )
+
+            if self.ratio_speed and self.ratio_speed_scale > 0:
+                feats = self.visual_only(z)
+                ratio_speed_loss = self.total_ratio_speed_constancy(
+                    feats, mode=self.ratio_speed_mode
+                )
+                loss = loss + ratio_speed_loss * self.ratio_speed_scale
+                loss_components["ratio_speed_loss_used_for_training"] = (
+                    ratio_speed_loss
+                )
+
+            if self.normalized_accel and self.normalized_accel_scale > 0:
+                feats = self.visual_only(z)
+                normalized_accel_loss = self.total_normalized_acceleration(
+                    feats, mode=self.normalized_accel_mode
+                )
+                loss = loss + normalized_accel_loss * self.normalized_accel_scale
+                loss_components["normalized_accel_loss_used_for_training"] = (
+                    normalized_accel_loss
                 )
         else:
             visual_pred = None

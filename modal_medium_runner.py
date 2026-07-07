@@ -258,6 +258,7 @@ def _variant_specs(
     include_dino_cls: bool,
     include_speed_ablations: bool = False,
     include_adapter_ablations: bool = False,
+    include_ratio_ablations: bool = False,
 ) -> list[dict[str, str]]:
     variants = [
         {
@@ -324,6 +325,21 @@ def _variant_specs(
                     "name": "dino_channel_cos_plus_speed",
                     "encoder": "dino_channel",
                     "straighten": "cos1e-1+speed1e-1",
+                },
+            ]
+        )
+    if include_ratio_ablations:
+        variants.extend(
+            [
+                {
+                    "name": "dino_channel_ratio_speed",
+                    "encoder": "dino_channel",
+                    "straighten": "ratiospeed1e-1",
+                },
+                {
+                    "name": "dino_channel_normacc",
+                    "encoder": "dino_channel",
+                    "straighten": "normacc1e-1",
                 },
             ]
         )
@@ -563,6 +579,7 @@ def run_medium(
     include_dino_cls: bool,
     include_speed_ablations: bool,
     include_adapter_ablations: bool,
+    include_ratio_ablations: bool,
     variant_name: str,
 ) -> dict[str, Any]:
     spec = _environment_spec(environment)
@@ -595,6 +612,7 @@ def run_medium(
         include_dino_cls=include_dino_cls,
         include_speed_ablations=include_speed_ablations,
         include_adapter_ablations=include_adapter_ablations,
+        include_ratio_ablations=include_ratio_ablations,
     )
     if variant_name:
         variants = [variant for variant in variants if variant["name"] == variant_name]
@@ -671,6 +689,7 @@ def plan_existing_medium(
     include_dino_cls: bool,
     include_speed_ablations: bool,
     include_adapter_ablations: bool,
+    include_ratio_ablations: bool,
     variant_name: str,
 ) -> dict[str, Any]:
     run_root = VOLUME_DIR / "runs" / run_id
@@ -690,6 +709,7 @@ def plan_existing_medium(
         include_dino_cls,
         include_speed_ablations,
         include_adapter_ablations,
+        include_ratio_ablations,
     )
     if variant_name:
         variants = [variant for variant in variants if variant["name"] == variant_name]
@@ -760,6 +780,8 @@ def _latent_metrics_from_z(z: Any, eps: float = 1e-6) -> dict[str, list[float]]:
         "cosine_alignment": [],
         "latent_speed": [],
         "latent_speed_cv": [],
+        "speed_ratio_penalty": [],
+        "normalized_acceleration": [],
         "relative_speed_jump": [],
         "path_endpoint_ratio": [],
     }
@@ -791,11 +813,24 @@ def _latent_metrics_from_z(z: Any, eps: float = 1e-6) -> dict[str, list[float]]:
         if mask.any():
             cos = F.cosine_similarity(v1, v2, dim=-1, eps=eps)[mask]
             curvature = 1.0 - cos
+            speed_ratio = (step2[mask] + eps) / (step1[mask] + eps)
+            speed_ratio_penalty = (
+                torch.sqrt(speed_ratio) - torch.rsqrt(speed_ratio)
+            ).pow(2)
+            normalized_acceleration = speed_ratio_penalty + 2.0 * curvature
             result["cosine_alignment"].extend(
                 float(value) for value in cos.detach().cpu().flatten().tolist()
             )
             result["cosine_curvature"].extend(
                 float(value) for value in curvature.detach().cpu().flatten().tolist()
+            )
+            result["speed_ratio_penalty"].extend(
+                float(value)
+                for value in speed_ratio_penalty.detach().cpu().flatten().tolist()
+            )
+            result["normalized_acceleration"].extend(
+                float(value)
+                for value in normalized_acceleration.detach().cpu().flatten().tolist()
             )
 
     endpoint = (z[:, -1] - z[:, 0]).norm(dim=-1)
@@ -879,6 +914,8 @@ def _analyze_variant_latents(
         "cosine_alignment": [],
         "latent_speed": [],
         "latent_speed_cv": [],
+        "speed_ratio_penalty": [],
+        "normalized_acceleration": [],
         "relative_speed_jump": [],
         "path_endpoint_ratio": [],
         "state_position_speed_cv": [],
@@ -925,6 +962,8 @@ def _analyze_variant_latents(
         "latent_speed_mean": _mean(latent_speed),
         "latent_speed_std": _summarize_values(latent_speed)["std"],
         "latent_speed_cv_time_mean": _mean(collected["latent_speed_cv"]),
+        "speed_ratio_penalty_mean": _mean(collected["speed_ratio_penalty"]),
+        "normalized_acceleration_mean": _mean(collected["normalized_acceleration"]),
         "latent_speed_p95_p05_ratio": speed_p95 / (speed_p05 + 1e-6)
         if latent_speed
         else float("nan"),
@@ -945,6 +984,12 @@ def _analyze_variant_latents(
             "cosine_curvature": _summarize_values(collected["cosine_curvature"]),
             "latent_speed": _summarize_values(latent_speed),
             "latent_speed_cv": _summarize_values(collected["latent_speed_cv"]),
+            "speed_ratio_penalty": _summarize_values(
+                collected["speed_ratio_penalty"]
+            ),
+            "normalized_acceleration": _summarize_values(
+                collected["normalized_acceleration"]
+            ),
             "relative_speed_jump": _summarize_values(
                 collected["relative_speed_jump"]
             ),
@@ -975,6 +1020,7 @@ def analyze_latents_medium(
     include_dino_cls: bool,
     include_speed_ablations: bool,
     include_adapter_ablations: bool,
+    include_ratio_ablations: bool,
     variant_name: str,
     max_rollouts: int,
 ) -> dict[str, Any]:
@@ -995,6 +1041,7 @@ def analyze_latents_medium(
         include_dino_cls,
         include_speed_ablations,
         include_adapter_ablations,
+        include_ratio_ablations,
     )
     if variant_name:
         variants = [variant for variant in variants if variant["name"] == variant_name]
@@ -1036,6 +1083,8 @@ def analyze_latents_medium(
             "cosine_curvature_mean": "mean(1 - cosine(v_t, v_t+1)); lower is directionally straighter",
             "path_endpoint_ratio_mean": "latent path length divided by endpoint distance; 1 is globally straight",
             "latent_speed_cv_time_mean": "mean over token trajectories of std(speed_t)/mean(speed_t); lower is more constant speed",
+            "speed_ratio_penalty_mean": "mean((sqrt(||v_t+1||/||v_t||) - sqrt(||v_t||/||v_t+1||))^2); lower is more locally constant speed",
+            "normalized_acceleration_mean": "mean speed_ratio_penalty + 2 * cosine_curvature; lower is lower normalized latent acceleration",
             "latent_speed_p95_p05_ratio": "global p95 latent step speed divided by p05 latent step speed; lower means fewer speed lurches",
             "relative_speed_jump_mean": "mean abs(speed_t+1 - speed_t) normalized by trajectory mean speed",
             "state_position_speed_cv_mean": "same CV diagnostic on physical x/y state, for context only",
@@ -1132,6 +1181,7 @@ def main(
     include_dino_cls: bool = False,
     include_speed_ablations: bool = False,
     include_adapter_ablations: bool = False,
+    include_ratio_ablations: bool = False,
     variant_name: str = "",
     max_rollouts: int = 50,
     include_epoch_checkpoints: bool = False,
@@ -1151,6 +1201,7 @@ def main(
             include_dino_cls=include_dino_cls,
             include_speed_ablations=include_speed_ablations,
             include_adapter_ablations=include_adapter_ablations,
+            include_ratio_ablations=include_ratio_ablations,
             variant_name=variant_name,
         )
         print(json.dumps(summary, indent=2))
@@ -1166,6 +1217,7 @@ def main(
             include_dino_cls=include_dino_cls,
             include_speed_ablations=include_speed_ablations,
             include_adapter_ablations=include_adapter_ablations,
+            include_ratio_ablations=include_ratio_ablations,
             variant_name=variant_name,
             max_rollouts=max_rollouts,
         )
@@ -1204,6 +1256,7 @@ def main(
         include_dino_cls=include_dino_cls,
         include_speed_ablations=include_speed_ablations,
         include_adapter_ablations=include_adapter_ablations,
+        include_ratio_ablations=include_ratio_ablations,
         variant_name=variant_name,
     )
     print(json.dumps(summary, indent=2))

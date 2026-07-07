@@ -1,12 +1,14 @@
 # Temporal Straightening Reproduction Report
 
-Date: 2026-07-03
+Date: 2026-07-07
 
 ## Executive Summary
 
 I retried the Modal pipeline after the spend-limit interruption and completed the requested end-to-end runs for Medium and Wall. The reproduced Medium baseline shows authors-style DINO patch temporal straightening and DINO patch without straightening both at 0.14 planner success, while DINO CLS reaches 0.22 success in this setup. The frozen-DINO speed ablation supports the critique but cannot prove a fix because the measured latent path is frozen.
 
 The follow-up trainable DINO-channel adapter ablation addresses that caveat. It shows the expected tradeoff: cosine straightening improves directional straightness and path ratio but increases latent speed variation; speed-only improves speed regularity but does not make the path directionally straighter. Combining cosine and speed gives the best curvature, path ratio, and mean state distance, but not the best planner success rate.
+
+The July 7 ratio-speed ablation tests Erin's sharper version of the speed caveat. The scale-invariant ratio term avoids directly shrinking latent speeds, unlike a magnitude smoothness penalty, but ratio-speed alone did not improve planner success. The coefficient-free normalized-acceleration form lowered curvature and full normalized acceleration and reached 0.16 planner success, the best DINO-channel adapter success rate in these one-seed Medium runs, though still below the DINO CLS baseline at 0.22.
 
 For Wall, both authors-style DINO patch straightening and DINO patch without straightening completed end to end. DINO trained to a lower validation loss, but both variants produced the same planner success rate, 0.02, and the same final distance metrics.
 
@@ -19,6 +21,21 @@ The core claim being tested is that a useful latent encoding should make gradien
 ```
 
 That objective aligns directions but normalizes away speed. The ablation therefore adds speed-constancy penalties on consecutive latent step magnitudes. This targets the gap between the paper's constant-latent-speed assumption and the fact that the cosine loss itself does not enforce constant speed.
+
+The July 7 follow-up replaces the magnitude speed penalty with Erin's scale-invariant ratio penalty:
+
+```text
+r_t = ||v_{t+1}|| / ||v_t||
+L_ratio = (sqrt(r_t) - 1 / sqrt(r_t))^2
+```
+
+It also tests the normalized-acceleration decomposition:
+
+```text
+||a_t||^2 / (||v_t|| ||v_{t+1}||) = L_ratio + 2 * (1 - cos(theta_t))
+```
+
+Both new runs use the trainable `dino_channel` adapter path from the meaningful adapter ablation. Latent diagnostics use a 20-rollout cap because the initial 50-rollout ratio diagnostic behaved like the earlier stalled adapter speed diagnostic.
 
 All completed Medium runs used 50 generated random-policy episodes, 100 frames per episode, 20 training epochs, and gradient-descent planning with 50 evaluations and goal horizon 25. Wall used the same episode count, episode length, epoch count, and planner settings after adding the missing Wall dataset support and fixing generated image shape consistency.
 
@@ -71,6 +88,25 @@ Interpretation:
 
 Caveat: the speed-only adapter diagnostic used 20 rollouts and an epoch-18 checkpoint after the 50-rollout diagnostic stalled. The other adapter diagnostics used 50 rollouts and epoch 20.
 
+## Erin Ratio-Speed Ablation
+
+| Variant | Loss setting | Epoch | Train loss | Val loss | Planner success | Mean state dist |
+|---|---:|---:|---:|---:|---:|---:|
+| `dino_channel_ratio_speed` | `ratiospeed1e-1` | 20 | 0.1426 | 0.1408 | 0.12 | 4.2253 |
+| `dino_channel_normacc` | `normacc1e-1` | 20 | 0.3688 | 0.3339 | 0.16 | 3.5665 |
+
+| Variant | Rollouts | Curvature | Path/end | Ratio penalty | Norm. accel | Speed CV | Speed jump |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Ratio-speed | 20 | 1.3435 | 17.5652 | 0.3153 | 3.0024 | 0.3793 | 0.3756 |
+| Normalized acceleration | 20 | 1.0340 | 13.8773 | 0.5058 | 2.5737 | 0.4510 | 0.4598 |
+
+Interpretation:
+
+- Ratio-speed is not the same as the paper author's smoothness ablation. It does not directly penalize large latent steps and it kept much larger latent speeds than the earlier magnitude speed-only adapter run.
+- Ratio-speed alone mostly improves the speed-constancy side of the diagnostic. It did not improve directional straightness: curvature 1.3435 is close to the old speed-only adapter value 1.3431 and worse than no-straightening's 1.3060.
+- Normalized acceleration combines ratio speed with curvature. It lowered curvature from 1.3435 to 1.0340 and lowered the full normalized-acceleration diagnostic from 3.0024 to 2.5737.
+- Normalized acceleration reached 0.16 planner success, better than the previous DINO-channel adapter variants in this reproduction. It did not beat DINO CLS at 0.22, and its pure speed metrics were worse than ratio-speed alone, so this is evidence for Erin's direction but not a robust win.
+
 ## Wall Results
 
 Wall initially failed from the checkout because the legacy Wall import expected `WallDataset`, and the generated visual observations had inconsistent shapes. The retry succeeded after adding a Wall compatibility placeholder and canonicalizing generated Wall images to fixed-size HWC tensors.
@@ -98,6 +134,10 @@ The Wall planner path did not render image or contact-sheet media. Wall evidence
 - Image evidence summary: `modal_evidence/medium-ablations-20260702-01/image_evidence_summary.json`
 - Adapter completed summary: `modal_evidence/medium-adapter-ablations-20260702-01/adapter_results.json`
 - Adapter pulled raw summaries: `modal_evidence/medium-adapter-ablations-20260702-01/pulled/`
+- Erin ratio-speed summary: `modal_evidence/medium-ratio-ablations-20260707-01/ratio_results.json`
+- Erin ratio-speed evidence README: `modal_evidence/medium-ratio-ablations-20260707-01/README.md`
+- Erin ratio-speed pulled summaries/logs: `modal_evidence/medium-ratio-ablations-20260707-01/pulled/`
+- Erin ratio-speed training logs: `modal_evidence/medium-ratio-ablations-20260707-01/raw_volume/`
 - Wall completed summary: `modal_evidence/wall-full-20260703-01/wall_results.json`
 - Wall pulled raw summaries/logs: `modal_evidence/wall-full-20260703-01/pulled/`
 - Contact sheets:
@@ -126,6 +166,20 @@ modal run modal_medium_runner.py --action analyze-latents --run-id medium-adapte
 modal run modal_medium_runner.py --action analyze-latents --run-id medium-adapter-cos-20260702-01 --epochs 20 --environment medium --include-adapter-ablations --variant-name dino_channel_cos_straightened --max-rollouts 50
 modal run modal_medium_runner.py --action analyze-latents --run-id medium-adapter-speed-20260702-01 --epochs 20 --environment medium --include-adapter-ablations --variant-name dino_channel_speed_constancy --max-rollouts 20
 modal run modal_medium_runner.py --action analyze-latents --run-id medium-adapter-cos-speed-20260702-01 --epochs 20 --environment medium --include-adapter-ablations --variant-name dino_channel_cos_plus_speed --max-rollouts 50
+```
+
+Erin ratio-speed Medium runs:
+
+```bash
+modal run modal_medium_runner.py --action run --environment medium --run-id medium-ratio-speed-20260707-01 --epochs 20 --n-episodes 50 --episode-length 100 --batch-size 32 --num-workers 0 --plan-n-evals 50 --plan-goal-h 25 --include-ratio-ablations --variant-name dino_channel_ratio_speed
+modal run modal_medium_runner.py --action run --environment medium --run-id medium-normacc-20260707-01 --epochs 20 --n-episodes 50 --episode-length 100 --batch-size 32 --num-workers 0 --plan-n-evals 50 --plan-goal-h 25 --include-ratio-ablations --variant-name dino_channel_normacc
+```
+
+Erin ratio-speed latent diagnostics:
+
+```bash
+modal run modal_medium_runner.py --action analyze-latents --run-id medium-ratio-speed-20260707-01 --epochs 20 --environment medium --include-ratio-ablations --variant-name dino_channel_ratio_speed --max-rollouts 20
+modal run modal_medium_runner.py --action analyze-latents --run-id medium-normacc-20260707-01 --epochs 20 --environment medium --include-ratio-ablations --variant-name dino_channel_normacc --max-rollouts 20
 ```
 
 Wall full runs:
