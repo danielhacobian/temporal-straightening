@@ -157,6 +157,8 @@ jobs:
             --platform linux/amd64 \
             --file infra/container/Dockerfile \
             --build-arg "SOURCE_REVISION=${GITHUB_SHA}" \
+            --cache-from type=gha,scope=training-image \
+            --cache-to type=gha,mode=max,scope=training-image \
             --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
             --tag "${REPOSITORY_URI}:${IMAGE_TAG}" \
             --push \
