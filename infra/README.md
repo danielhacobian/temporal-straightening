@@ -120,18 +120,17 @@ role may read only those two canonical input objects for this metadata check.
 
 The deployment role is restricted to the owner, the repository's `infra`
 branch, and the exact deploy workflow; ordinary contributors cannot deploy or
-push images. The submit role cannot deploy infrastructure; its OIDC
-trust accepts only calls through
+push images. An owner push to `infra` builds the immutable image and reconciles
+the stack automatically; manual dispatch remains available after the workflow
+also exists on the default branch. The submit role cannot deploy
+infrastructure; its OIDC trust accepts only calls through
 `.github/workflows/aws-paid-broker.yml@refs/heads/infra` from the predefined
 and declarative training-tag namespaces below. Manual and tag broker runs use
 only the pinned broker role. A tag's tiny wrapper cannot choose
 credentials, configuration, or cost: the reusable broker loaded from `infra`
 does that, and requires the tag to target the current `infra` tip exactly.
 Contributors need GitHub push permission, not AWS credentials and not email-
-based AWS onboarding. GitHub only exposes a new `workflow_dispatch` workflow
-after it exists on the default branch, so use the CloudShell scripts during
-bootstrap and retain/select `infra` when dispatching after the workflow is
-merged.
+based AWS onboarding.
 
 **Repository-writer trust boundary:** the reusable broker is branch-pinned,
 not commit-pinned. Anyone allowed to change and push the `infra` branch is

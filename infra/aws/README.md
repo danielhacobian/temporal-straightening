@@ -127,7 +127,10 @@ through the broker but cannot edit infrastructure. Workflows request
 reviewer. Manual dispatch is restricted
 to the exact `infra` branch; the deploy role additionally requires the
 `Deploy AWS infrastructure` workflow and the immutable GitHub actor ID for
-`usharma123`. Automatic submission is restricted to
+`usharma123`. An owner push to `infra` invokes that deploy workflow with safe
+defaults: build the commit-addressed image, keep the zero-idle CPU queue, and
+retain the existing-budget action. A non-owner push skips the deployment job
+and cannot assume the deploy role. Automatic submission is restricted to
 `train-smoke-*`, `train-anchor-*`, `train-screen-*`, `train-finalists-*`, and
 `train-scale-*`, plus cost-bounded `train-chunk-*` and declarative
 `train-run-*` requests; the tiny trigger calls a reusable broker pinned to

@@ -1,6 +1,9 @@
 name: Deploy AWS infrastructure
 
 on:
+  push:
+    branches:
+      - infra
   workflow_dispatch:
     inputs:
       image_tag:
@@ -37,7 +40,9 @@ env:
 jobs:
   deploy:
     name: Build and deploy the AWS stack
-    if: github.ref == 'refs/heads/infra'
+    # The IAM trust repeats this immutable actor-ID check. Contributor pushes
+    # can validate normally but cannot mutate infrastructure or publish images.
+    if: github.ref == 'refs/heads/infra' && github.actor_id == '125384326'
     permissions:
       contents: read
       id-token: write # Required only to exchange GitHub OIDC for the deploy role.
@@ -81,7 +86,7 @@ jobs:
         id: image
         env:
           REQUESTED_TAG: ${{ inputs.image_tag }}
-          BUILD_IMAGE: ${{ inputs.build_image }}
+          BUILD_IMAGE: ${{ github.event_name == 'push' || inputs.build_image }}
         shell: bash
         run: |
           set -euo pipefail
@@ -95,6 +100,7 @@ jobs:
             exit 2
           fi
           echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+          echo "build=${BUILD_IMAGE}" >> "${GITHUB_OUTPUT}"
 
       - name: Validate the template against AWS
         run: aws cloudformation validate-template --template-body file://infra/aws/template.yaml >/dev/null
@@ -115,7 +121,7 @@ jobs:
           echo "uri=${uri}" >> "${GITHUB_OUTPUT}"
 
       - name: Verify a reused image tag exists
-        if: ${{ !inputs.build_image }}
+        if: steps.image.outputs.build == 'false'
         env:
           REPOSITORY_URI: ${{ steps.ecr.outputs.uri }}
           IMAGE_TAG: ${{ steps.image.outputs.tag }}
@@ -128,7 +134,7 @@ jobs:
             --image-ids "imageTag=${IMAGE_TAG}" >/dev/null
 
       - name: Build and push the immutable training image
-        if: inputs.build_image
+        if: steps.image.outputs.build == 'true'
         env:
           REPOSITORY_URI: ${{ steps.ecr.outputs.uri }}
           IMAGE_TAG: ${{ steps.image.outputs.tag }}
@@ -158,8 +164,8 @@ jobs:
         env:
           CFN_EXECUTION_ROLE_ARN: ${{ vars.AWS_CFN_EXECUTION_ROLE_ARN }}
           IMAGE_TAG: ${{ steps.image.outputs.tag }}
-          ENABLE_CPU_FARGATE: ${{ inputs.enable_cpu_fargate }}
-          ENABLE_BUDGET_ACTION: ${{ inputs.enable_budget_action }}
+          ENABLE_CPU_FARGATE: ${{ github.event_name == 'push' || inputs.enable_cpu_fargate }}
+          ENABLE_BUDGET_ACTION: ${{ github.event_name == 'push' || inputs.enable_budget_action }}
           BUDGET_EMAIL: ${{ vars.AWS_BUDGET_ALERT_EMAIL }}
         shell: bash
         run: |

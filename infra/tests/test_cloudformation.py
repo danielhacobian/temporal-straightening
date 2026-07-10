@@ -229,6 +229,8 @@ class InfrastructureTemplateTests(unittest.TestCase):
         )
         self.assertIn("vars.AWS_BUDGET_ALERT_EMAIL", workflow)
         self.assertIn('"BudgetAlertEmail=${BUDGET_EMAIL}"', workflow)
+        self.assertIn("github.actor_id == '125384326'", workflow)
+        self.assertIn("github.event_name == 'push' || inputs.build_image", workflow)
 
     def test_container_versions_and_dino_ref_are_pinned(self) -> None:
         dockerfile = DOCKERFILE_PATH.read_text(encoding="utf-8")
