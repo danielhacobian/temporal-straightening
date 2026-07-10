@@ -529,6 +529,7 @@ class TrustedBrokerWorkflowTests(unittest.TestCase):
         deploy_actions = allowed_actions(deploy_policy)
         self.assertIn("cloudformation:ValidateTemplate", deploy_actions)
         self.assertIn("cloudformation:DescribeStacks", deploy_actions)
+        self.assertIn("ecr:BatchGetImage", deploy_actions)
         self.assertIn("ecr:DescribeImages", deploy_actions)
 
         broker_policy = self.resources["GitHubBrokerManagedPolicy"]["Properties"][
