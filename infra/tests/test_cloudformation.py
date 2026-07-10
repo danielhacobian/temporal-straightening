@@ -281,6 +281,13 @@ class InfrastructureTemplateTests(unittest.TestCase):
         self.assertIn("torch.backends.mkldnn.enabled = False", smoke)
         self.assertIn('"mkldnn_enabled": torch.backends.mkldnn.enabled', smoke)
         self.assertIn("visual.shape != (224, 224, 3)", smoke)
+        submit_helper = (REPO_ROOT / "infra" / "aws" / "submit_job.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            '["python", "-m", "infra.container.smoke_test"]', submit_helper
+        )
+        self.assertNotIn('"infra/container/smoke_test.py"', submit_helper)
 
     def test_deploy_preserves_oidc_provider_ownership(self) -> None:
         deploy = DEPLOY_SCRIPT_PATH.read_text(encoding="utf-8")

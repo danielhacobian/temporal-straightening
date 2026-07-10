@@ -128,7 +128,7 @@ def submit(aws: AwsCli, args: argparse.Namespace) -> None:
                     f"--max-compute-usd ${args.max_compute_usd:.2f}. Reduce runtime/attempts."
                 )
 
-    command = args.command or ["python", "infra/container/smoke_test.py"]
+    command = args.command or ["python", "-m", "infra.container.smoke_test"]
     if command and command[0] == "--":
         command = command[1:]
     if not command:
