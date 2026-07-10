@@ -531,6 +531,12 @@ class TrustedBrokerWorkflowTests(unittest.TestCase):
         self.assertIn("cloudformation:DescribeStacks", deploy_actions)
         self.assertIn("ecr:BatchGetImage", deploy_actions)
         self.assertIn("ecr:DescribeImages", deploy_actions)
+        execution_policy = self.resources["CloudFormationExecutionRole"]["Properties"][
+            "Policies"
+        ][0]["PolicyDocument"]
+        execution_actions = allowed_actions(execution_policy)
+        self.assertIn("ecr:GetRepositoryPolicy", execution_actions)
+        self.assertIn("iam:ListOpenIDConnectProviderTags", execution_actions)
 
         broker_policy = self.resources["GitHubBrokerManagedPolicy"]["Properties"][
             "PolicyDocument"

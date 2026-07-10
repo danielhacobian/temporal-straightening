@@ -830,6 +830,7 @@ Resources:
                 Action:
                   - iam:DeleteOpenIDConnectProvider
                   - iam:GetOpenIDConnectProvider
+                  - iam:ListOpenIDConnectProviderTags
                   - iam:TagOpenIDConnectProvider
                   - iam:UntagOpenIDConnectProvider
                   - iam:UpdateOpenIDConnectProviderThumbprint
@@ -865,6 +866,7 @@ Resources:
                   - ecr:DeleteLifecyclePolicy
                   - ecr:DeleteRepository
                   - ecr:GetLifecyclePolicy
+                  - ecr:GetRepositoryPolicy
                   - ecr:ListTagsForResource
                   - ecr:PutImageScanningConfiguration
                   - ecr:PutImageTagMutability
