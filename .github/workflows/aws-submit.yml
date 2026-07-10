@@ -1,0 +1,24 @@
+name: Request an AWS experiment
+
+on:
+  push:
+    tags:
+      - "train-smoke-*"
+      - "train-anchor-*"
+      - "train-screen-*"
+      - "train-finalists-*"
+      - "train-scale-*"
+      - "train-chunk-*"
+      - "train-run-*"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  broker:
+    name: Call the trusted AWS experiment broker
+    permissions:
+      contents: read
+      id-token: write # Passed to the pinned reusable broker for AWS OIDC.
+    # The AWS trust policy binds job_workflow_ref to this exact path at refs/heads/infra.
+    uses: danielhacobian/temporal-straightening/.github/workflows/aws-paid-broker.yml@refs/heads/infra # zizmor: ignore[unpinned-uses]

@@ -1,0 +1,195 @@
+name: Deploy AWS infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "ECR tag to deploy (blank uses the first 12 characters of the commit SHA)"
+        required: false
+        type: string
+      build_image:
+        description: "Build and push the training image before updating the stack"
+        required: true
+        default: true
+        type: boolean
+      enable_cpu_fargate:
+        description: "Keep the zero-idle Fargate Spot queue for CPU proxy/smoke jobs"
+        required: true
+        default: true
+        type: boolean
+      enable_budget_action:
+        description: "At 100% actual, make the existing $20 budget block new normal launches"
+        required: true
+        default: true
+        type: boolean
+
+permissions: {}
+
+concurrency:
+  group: temporal-straightening-aws-deploy
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-2
+  STACK_NAME: temporal-straightening-infra
+  PROJECT_NAME: temporal-straightening
+
+jobs:
+  deploy:
+    name: Build and deploy the AWS stack
+    if: github.ref == 'refs/heads/infra'
+    permissions:
+      contents: read
+      id-token: write # Required only to exchange GitHub OIDC for the deploy role.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Check out the infra branch
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Require the bootstrapped OIDC variables
+        env:
+          AWS_GITHUB_ROLE_ARN: ${{ vars.AWS_GITHUB_ROLE_ARN }}
+          AWS_CFN_EXECUTION_ROLE_ARN: ${{ vars.AWS_CFN_EXECUTION_ROLE_ARN }}
+          AWS_BUDGET_ALERT_EMAIL: ${{ vars.AWS_BUDGET_ALERT_EMAIL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${AWS_GITHUB_ROLE_ARN}" || {
+            echo "Set repository variable AWS_GITHUB_ROLE_ARN from the bootstrap stack output." >&2
+            exit 2
+          }
+          test -n "${AWS_CFN_EXECUTION_ROLE_ARN}" || {
+            echo "Set repository variable AWS_CFN_EXECUTION_ROLE_ARN from the bootstrap stack output." >&2
+            exit 2
+          }
+          test -n "${AWS_BUDGET_ALERT_EMAIL}" || {
+            echo "Set repository variable AWS_BUDGET_ALERT_EMAIL to the budget alert recipient." >&2
+            exit 2
+          }
+
+      - name: Assume the branch-restricted AWS role
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
+        with:
+          role-to-assume: ${{ vars.AWS_GITHUB_ROLE_ARN }}
+          role-session-name: github-infra-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Resolve and validate the image tag
+        id: image
+        env:
+          REQUESTED_TAG: ${{ inputs.image_tag }}
+          BUILD_IMAGE: ${{ inputs.build_image }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${BUILD_IMAGE}" != "true" && -z "${REQUESTED_TAG}" ]]; then
+            echo "When build_image=false, image_tag must name an existing immutable ECR tag." >&2
+            exit 2
+          fi
+          tag="${REQUESTED_TAG:-${GITHUB_SHA:0:12}}"
+          if [[ ! "${tag}" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
+            echo "Invalid ECR image tag: ${tag}" >&2
+            exit 2
+          fi
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+
+      - name: Validate the template against AWS
+        run: aws cloudformation validate-template --template-body file://infra/aws/template.yaml >/dev/null
+
+      - name: Find the bootstrapped ECR repository
+        id: ecr
+        shell: bash
+        run: |
+          set -euo pipefail
+          uri="$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query "Stacks[0].Outputs[?OutputKey=='TrainingRepositoryUri'].OutputValue | [0]" \
+            --output text)"
+          if [[ -z "${uri}" || "${uri}" == "None" ]]; then
+            echo "Bootstrap the stack once before asking GitHub Actions to build an image." >&2
+            exit 2
+          fi
+          echo "uri=${uri}" >> "${GITHUB_OUTPUT}"
+
+      - name: Verify a reused image tag exists
+        if: ${{ !inputs.build_image }}
+        env:
+          REPOSITORY_URI: ${{ steps.ecr.outputs.uri }}
+          IMAGE_TAG: ${{ steps.image.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          repository_name="${REPOSITORY_URI#*/}"
+          aws ecr describe-images \
+            --repository-name "${repository_name}" \
+            --image-ids "imageTag=${IMAGE_TAG}" >/dev/null
+
+      - name: Build and push the immutable training image
+        if: inputs.build_image
+        env:
+          REPOSITORY_URI: ${{ steps.ecr.outputs.uri }}
+          IMAGE_TAG: ${{ steps.image.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          registry="${REPOSITORY_URI%%/*}"
+          repository_name="${REPOSITORY_URI#*/}"
+          if aws ecr describe-images \
+            --repository-name "${repository_name}" \
+            --image-ids "imageTag=${IMAGE_TAG}" >/dev/null 2>&1; then
+            echo "Immutable tag ${REPOSITORY_URI}:${IMAGE_TAG} already exists; reusing it."
+            exit 0
+          fi
+          aws ecr get-login-password --region "${AWS_REGION}" \
+            | docker login --username AWS --password-stdin "${registry}"
+          docker buildx build \
+            --platform linux/amd64 \
+            --file infra/container/Dockerfile \
+            --build-arg "SOURCE_REVISION=${GITHUB_SHA}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --tag "${REPOSITORY_URI}:${IMAGE_TAG}" \
+            --push \
+            .
+
+      - name: Deploy the zero-idle stack
+        env:
+          CFN_EXECUTION_ROLE_ARN: ${{ vars.AWS_CFN_EXECUTION_ROLE_ARN }}
+          IMAGE_TAG: ${{ steps.image.outputs.tag }}
+          ENABLE_CPU_FARGATE: ${{ inputs.enable_cpu_fargate }}
+          ENABLE_BUDGET_ACTION: ${{ inputs.enable_budget_action }}
+          BUDGET_EMAIL: ${{ vars.AWS_BUDGET_ALERT_EMAIL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws cloudformation deploy \
+            --region "${AWS_REGION}" \
+            --stack-name "${STACK_NAME}" \
+            --template-file infra/aws/template.yaml \
+            --role-arn "${CFN_EXECUTION_ROLE_ARN}" \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides \
+              "ProjectName=${PROJECT_NAME}" \
+              "ContainerImageTag=${IMAGE_TAG}" \
+              "EnableCpuFargate=${ENABLE_CPU_FARGATE}" \
+              "EnableExistingBudgetAction=${ENABLE_BUDGET_ACTION}" \
+              "ExistingBudgetName=ts-net-out-of-pocket-20" \
+              "BudgetAlertEmail=${BUDGET_EMAIL}" \
+              "GpuJobTimeoutSeconds=86400" \
+            --tags \
+              "Project=${PROJECT_NAME}" \
+              "ManagedBy=GitHubActions"
+
+      - name: Summarize safe-to-share outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName' || OutputKey=='GpuJobQueueArn' || OutputKey=='TrainingRepositoryUri'].[OutputKey,OutputValue]" \
+            --output table >> "${GITHUB_STEP_SUMMARY}"
+          echo "" >> "${GITHUB_STEP_SUMMARY}"
+          echo "This workflow deploys infrastructure and images only; it never submits a paid Batch job." >> "${GITHUB_STEP_SUMMARY}"

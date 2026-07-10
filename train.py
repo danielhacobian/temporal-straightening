@@ -27,6 +27,29 @@ import custom_resolvers  # noqa: F401  # Registers OmegaConf resolvers at import
 warnings.filterwarnings("ignore")
 log = logging.getLogger(__name__)
 
+
+def _atomic_torch_save(payload, destination):
+    """Durably replace a checkpoint without exposing a partial .pth file."""
+    destination = Path(destination)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_name(
+        f".{destination.name}.tmp.{os.getpid()}.{threading.get_ident()}"
+    )
+    try:
+        with temporary.open("wb") as handle:
+            torch.save(payload, handle)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, destination)
+        directory_fd = os.open(destination.parent, os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 class Trainer:
     def __init__(self, cfg):
         self.cfg = cfg
@@ -182,6 +205,8 @@ class Trainer:
             ["decoder", "decoder_optimizer"] if self.train_decoder else []
         )
         self._keys_to_save += ["action_encoder", "proprio_encoder"]
+        if self.cfg.has_predictor:
+            self._keys_to_save += ["action_encoder_optimizer"]
 
         self.init_models()
         self.init_optimizers()
@@ -238,10 +263,15 @@ class Trainer:
                     ckpt[k] = self.accelerator.unwrap_model(v)
                 else:
                     ckpt[k] = v
-            torch.save(ckpt, "checkpoints/model_latest.pth")
-            torch.save(ckpt, f"checkpoints/model_{self.epoch}.pth")
+            # Publish the immutable epoch file first.  Only after it is durable do
+            # we advance model_latest, so a Spot interruption can never leave a
+            # partially-written resume target.
+            epoch_path = Path("checkpoints") / f"model_{self.epoch}.pth"
+            latest_path = Path("checkpoints") / "model_latest.pth"
+            _atomic_torch_save(ckpt, epoch_path)
+            _atomic_torch_save(ckpt, latest_path)
             log.info("Saved model to {}".format(os.getcwd()))
-            ckpt_path = os.path.join(os.getcwd(), f"checkpoints/model_{self.epoch}.pth")
+            ckpt_path = str(Path(os.getcwd()) / epoch_path)
         else:
             ckpt_path = None
         model_name = self.cfg["saved_folder"].split("/")[-1]
@@ -282,20 +312,22 @@ class Trainer:
             )
         self._configure_encoder_trainability()
 
-        self.proprio_encoder = hydra.utils.instantiate(
-            self.cfg.proprio_encoder,
-            in_chans=self.datasets["train"].proprio_dim,
-            emb_dim=self.cfg.proprio_emb_dim,
-        )
+        if self.proprio_encoder is None:
+            self.proprio_encoder = hydra.utils.instantiate(
+                self.cfg.proprio_encoder,
+                in_chans=self.datasets["train"].proprio_dim,
+                emb_dim=self.cfg.proprio_emb_dim,
+            )
         proprio_emb_dim = self.proprio_encoder.emb_dim
         print(f"Proprio encoder type: {type(self.proprio_encoder)}")
         self.proprio_encoder = self.accelerator.prepare(self.proprio_encoder)
 
-        self.action_encoder = hydra.utils.instantiate(
-            self.cfg.action_encoder,
-            in_chans=self.datasets["train"].action_dim,
-            emb_dim=self.cfg.action_emb_dim,
-        )
+        if self.action_encoder is None:
+            self.action_encoder = hydra.utils.instantiate(
+                self.cfg.action_encoder,
+                in_chans=self.datasets["train"].action_dim,
+                emb_dim=self.cfg.action_emb_dim,
+            )
         action_emb_dim = self.action_encoder.emb_dim
         print(f"Action encoder type: {type(self.action_encoder)}")
 
@@ -473,7 +505,7 @@ class Trainer:
             self.monitor_thread.start()
 
         init_epoch = self.epoch + 1  # epoch starts from 1
-        for epoch in range(init_epoch, init_epoch + self.total_epochs):
+        for epoch in range(init_epoch, self.total_epochs + 1):
             self.epoch = epoch
             if self.accelerator.is_main_process:
                 decoder_active = self.decoder_training_active()

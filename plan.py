@@ -157,6 +157,12 @@ class PlanWorkspace:
             self.prepare_targets_from_file(cfg_dict["goal_file_path"])
         else:
             self.prepare_targets()
+        if not hasattr(self, "goal_ids"):
+            self.goal_ids = list(range(self.n_evals))
+        if len(self.goal_ids) != self.n_evals:
+            raise ValueError(
+                f"Expected {self.n_evals} goal_ids, got {len(self.goal_ids)}"
+            )
 
         self.evaluator = PlanEvaluator(
             obs_0=self.obs_0,
@@ -267,6 +273,25 @@ class PlanWorkspace:
             self.state_0 = init_state  # (b, d)
             self.state_g = rollout_states[:, -1]  # (b, d)
             self.gt_actions = wm_actions
+            # Keep the full held-out rollouts so representation checkpoints can be
+            # scored against shortest-path distance without rerunning the planner.
+            self.proxy_trajectories = [
+                {
+                    "trajectory_id": index,
+                    "goal_id": index,
+                    "observations": {
+                        key: np.expand_dims(value[index], axis=1)
+                        for key, value in rollout_obses.items()
+                    },
+                    "goal_observation": {
+                        key: np.expand_dims(value[index, -1:], axis=1)
+                        for key, value in rollout_obses.items()
+                    },
+                    "states": rollout_states[index],
+                    "goal_state": rollout_states[index, -1],
+                }
+                for index in range(self.n_evals)
+            ]
 
     def sample_traj_segment_from_dset(self, traj_len):
         states = []
@@ -313,20 +338,24 @@ class PlanWorkspace:
         self.state_g = data["state_g"]
         self.gt_actions = data["gt_actions"]
         self.goal_H = data["goal_H"]
+        self.goal_ids = list(data.get("goal_ids", range(self.n_evals)))
+        self.proxy_trajectories = data.get("proxy_trajectories")
 
     def dump_targets(self):
+        """Persist the exact planning targets for reproducibility/debugging."""
+        targets = {
+            "obs_0": self.obs_0,
+            "obs_g": self.obs_g,
+            "state_0": self.state_0,
+            "state_g": self.state_g,
+            "gt_actions": self.gt_actions,
+            "goal_H": self.goal_H,
+            "goal_ids": self.goal_ids,
+        }
+        if getattr(self, "proxy_trajectories", None) is not None:
+            targets["proxy_trajectories"] = self.proxy_trajectories
         with open("plan_targets.pkl", "wb") as f:
-            pickle.dump(
-                {
-                    "obs_0": self.obs_0,
-                    "obs_g": self.obs_g,
-                    "state_0": self.state_0,
-                    "state_g": self.state_g,
-                    "gt_actions": self.gt_actions,
-                    "goal_H": self.goal_H,
-                },
-                f,
-            )
+            pickle.dump(targets, f)
         file_path = os.path.abspath("plan_targets.pkl")
         print(f"Dumped plan targets to {file_path}")
 
@@ -355,6 +384,49 @@ class PlanWorkspace:
         }
         with open(self.log_filename, "a") as file:
             file.write(json.dumps(logs_entry) + "\n")
+
+        success_values = np.asarray(successes).astype(bool).reshape(-1).tolist()
+        if action_len is None:
+            action_lengths = [None] * len(success_values)
+        else:
+            raw_lengths = np.asarray(action_len).reshape(-1).tolist()
+            action_lengths = [
+                None if not np.isfinite(value) else int(value) for value in raw_lengths
+            ]
+        if len(action_lengths) != len(success_values):
+            raise ValueError(
+                "Planner returned a different number of action lengths and results: "
+                f"{len(action_lengths)} != {len(success_values)}"
+            )
+        per_goal = []
+        for index, (goal_id, eval_seed, success, planned_steps) in enumerate(
+            zip(self.goal_ids, self.eval_seed, success_values, action_lengths)
+        ):
+            if isinstance(goal_id, np.generic):
+                goal_id = goal_id.item()
+            per_goal.append(
+                {
+                    "goal_index": index,
+                    "goal_id": goal_id,
+                    "eval_seed": int(eval_seed),
+                    "success": bool(success),
+                    "planned_model_steps": planned_steps,
+                    "data_seed": os.environ.get("EXPERIMENT_DATA_SEED"),
+                    "train_seed": os.environ.get("EXPERIMENT_TRAIN_SEED"),
+                    "planner_seed": os.environ.get("EXPERIMENT_PLANNER_SEED"),
+                }
+            )
+        with open("per_goal_results.json", "w", encoding="utf-8") as file:
+            json.dump(
+                {
+                    "schema_version": 1,
+                    "goal_count": len(per_goal),
+                    "records": per_goal,
+                },
+                file,
+                indent=2,
+                sort_keys=True,
+            )
         return logs
 
 

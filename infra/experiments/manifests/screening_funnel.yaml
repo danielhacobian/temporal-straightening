@@ -1,0 +1,87 @@
+schema_version: 1
+name: umaze_screening_funnel
+paper_version: arXiv:2603.12231v1 plus candidate losses
+environment:
+  name: PointMaze UMaze
+  hydra: point_maze
+  maze: umaze
+  goal_horizon: 25
+dataset:
+  uri: ${TS_UMAZE_DATASET_S3_URI}
+  sha256: ${TS_UMAZE_DATASET_SHA256}
+  version_id: ${TS_UMAZE_DATASET_VERSION_ID}
+  archive: zip
+  leaf: point_maze
+  rollouts: 100
+goal_set:
+  uri: ${TS_UMAZE_GOALS_S3_URI}
+  sha256: ${TS_UMAZE_GOALS_SHA256}
+  version_id: ${TS_UMAZE_GOALS_VERSION_ID}
+  count: 50
+seed_sets:
+  - data_seed: 10
+    train_seed: 20
+    planner_seed: 100
+  - data_seed: 11
+    train_seed: 21
+    planner_seed: 101
+  - data_seed: 12
+    train_seed: 22
+    planner_seed: 102
+variants:
+  - name: r0_curvature
+    hydra_overrides:
+      encoder: dino_channel
+      training.straighten: cos1e-1
+      training.encoder_lr: 1.0e-5
+  - name: r1_ratio_speed
+    hydra_overrides:
+      encoder: dino_channel
+      training.straighten: ratiospeed1e-1
+      training.encoder_lr: 1.0e-5
+  - name: r2_normalized_acceleration
+    hydra_overrides:
+      encoder: dino_channel
+      training.straighten: normacc1e-1
+      training.encoder_lr: 1.0e-5
+  - name: r3_beta_0_25
+    hydra_overrides:
+      encoder: dino_channel
+      training.straighten: cos1e-1+ratiospeed2.5e-2
+      training.encoder_lr: 1.0e-5
+  - name: r3_beta_1
+    hydra_overrides:
+      encoder: dino_channel
+      training.straighten: cos1e-1+ratiospeed1e-1
+      training.encoder_lr: 1.0e-5
+  - name: r3_beta_4
+    hydra_overrides:
+      encoder: dino_channel
+      training.straighten: cos1e-1+ratiospeed4e-1
+      training.encoder_lr: 1.0e-5
+  - name: r4_raw_acceleration_control
+    enabled: false
+    blocked_reason: raw acceleration is not parsed or optimized by models/visual_world_model.py yet
+    hydra_overrides:
+      encoder: dino_channel
+      training.straighten: rawacc1e-1
+      training.encoder_lr: 1.0e-5
+epochs: 10
+hydra_overrides:
+  train:
+    training.batch_size: 32
+    training.save_every_x_epoch: 1
+    training.save_every_x_iterations: 0
+    training.decoder_start_epoch: 999
+    training.reconstruct_every_x_batch: 999999
+    env.num_workers: 4
+    plan_settings.plan_cfg_path: null
+  plan: {}
+stages:
+  - train
+  - proxy
+cost_envelope:
+  max_hours: 6
+  max_hourly_usd: 0.40
+  max_usd: 4
+artifact_prefix: ${TS_ARTIFACT_PREFIX}/screening

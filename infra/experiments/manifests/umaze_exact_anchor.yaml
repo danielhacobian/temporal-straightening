@@ -1,0 +1,87 @@
+schema_version: 1
+name: umaze_released_dataset_anchor
+paper_version: "arXiv:2603.12231v1 recipe; one released dataset, three training seeds"
+environment:
+  name: PointMaze UMaze
+  hydra: point_maze
+  maze: umaze
+  goal_horizon: 25
+dataset:
+  uri: ${TS_UMAZE_DATASET_S3_URI}
+  sha256: ${TS_UMAZE_DATASET_SHA256}
+  version_id: ${TS_UMAZE_DATASET_VERSION_ID}
+  archive: zip
+  leaf: point_maze
+  rollouts: 2000
+goal_set:
+  uri: ${TS_UMAZE_GOALS_S3_URI}
+  sha256: ${TS_UMAZE_GOALS_SHA256}
+  version_id: ${TS_UMAZE_GOALS_VERSION_ID}
+  count: 50
+seed_sets:
+  - data_seed: 42
+    train_seed: 0
+    planner_seed: 100
+  - data_seed: 42
+    train_seed: 1
+    planner_seed: 100
+  - data_seed: 42
+    train_seed: 2
+    planner_seed: 100
+variants:
+  - name: dino_patch
+    hydra_overrides:
+      encoder: dino
+      training.straighten: false
+      training.encoder_lr: 1.0e-5
+  - name: projector_curvature
+    hydra_overrides:
+      encoder: dino_channel
+      training.straighten: aggcos1e-1
+      training.encoder_lr: 1.0e-5
+  - name: projector_only
+    hydra_overrides:
+      encoder: dino_channel
+      training.straighten: false
+      training.encoder_lr: 1.0e-6
+profiles:
+  default:
+    - dino_patch
+    - projector_only
+    - projector_curvature
+  minimal:
+    - projector_only
+    - projector_curvature
+epochs: 20
+hydra_overrides:
+  train:
+    training.batch_size: 32
+    training.save_every_x_epoch: 1
+    training.save_every_x_iterations: 0
+    # Preserve the paper-recipe training path for the confirmatory anchor.
+    training.decoder_start_epoch: 1
+    training.reconstruct_every_x_batch: 999999
+    env.num_workers: 8
+    plan_settings.plan_cfg_path: null
+  plan:
+    objective.alpha: 0
+    objective.mode: last
+    planner.max_iter: 1
+    planner.n_taken_actions: 25
+    planner.sub_planner.horizon: 25
+    planner.sub_planner.lr: 0.01
+    planner.sub_planner.sample_type: zero
+    planner.sub_planner.action_noise: 0
+    planner.sub_planner.opt_steps: 100
+    planner.sub_planner.eval_every: -1
+    decode_for_viz: false
+    +wandb_logging: false
+stages:
+  - train
+  - proxy
+  - plan
+cost_envelope:
+  max_hours: 24
+  max_hourly_usd: 0.40
+  max_usd: 15
+artifact_prefix: ${TS_ARTIFACT_PREFIX}/anchor

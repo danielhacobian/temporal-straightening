@@ -1,0 +1,969 @@
+name: Trusted AWS experiment broker
+
+on:
+  workflow_call:
+
+permissions: {}
+
+env:
+  AWS_REGION: us-east-2
+  STACK_NAME: temporal-straightening-infra
+
+jobs:
+  broker:
+    name: Validate and broker the requested experiment
+    permissions:
+      contents: read
+      id-token: write # Required only to exchange GitHub OIDC for the broker role.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out the trusted infra branch
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: refs/heads/infra
+
+      - name: Resolve a fail-closed trigger policy
+        id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_SHA: ${{ github.sha }}
+          REF_DELETED: ${{ github.event.deleted }}
+          REF_NAME: ${{ github.ref_name }}
+          REF_VALUE: ${{ github.ref }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${REPOSITORY}" == "danielhacobian/temporal-straightening" ]] || {
+            echo "This broker is restricted to its source repository." >&2
+            exit 2
+          }
+          trusted_revision="$(git rev-parse HEAD)"
+          event_revision="$(git rev-parse "${EVENT_SHA}^{commit}")"
+          [[ "${event_revision}" == "${trusted_revision}" ]] || {
+            echo "The request must target the current infra tip exactly." >&2
+            exit 2
+          }
+
+          if [[ "${EVENT_NAME}" == "push" ]]; then
+            [[ "${REF_DELETED}" != "true" ]] || {
+              echo "Deleting a training tag must never submit work." >&2
+              exit 2
+            }
+            [[ "${REF_VALUE}" == refs/tags/* ]] || {
+              echo "Automatic submission requires a training tag." >&2
+              exit 2
+            }
+            tag_revision="$(git rev-parse "${REF_VALUE}^{commit}")"
+            [[ "${tag_revision}" == "${event_revision}" ]] || {
+              echo "The event SHA does not match the pushed tag target." >&2
+              exit 2
+            }
+            custom_spec=""
+            custom_name=""
+            chunk_family=""
+            chunk_variant=""
+            chunk_seed_index=""
+            chunk_rollouts=""
+            if [[ "${REF_NAME}" =~ ^train-chunk-(anchor|screen|finalists|scale)-([a-z0-9][a-z0-9_]{0,39})-s([0-9])-r([1-9][0-9]{0,4})-([a-z0-9][a-z0-9._-]{0,31})$ ]]; then
+              chunk_family="${BASH_REMATCH[1]}"
+              chunk_variant="${BASH_REMATCH[2]}"
+              chunk_seed_index="${BASH_REMATCH[3]}"
+              chunk_rollouts="${BASH_REMATCH[4]}"
+              manifest="chunk_${chunk_family}_${chunk_variant}_s${chunk_seed_index}_r${chunk_rollouts}"
+              profile=default
+              maximum_plan_usd=5.00
+              mode=submit
+            elif [[ "${REF_NAME}" =~ ^train-run-([a-z0-9][a-z0-9_]{0,31})-([a-z0-9][a-z0-9._-]{0,31})$ ]]; then
+              custom_name="${BASH_REMATCH[1]}"
+              custom_spec="infra/experiments/manifests/custom/${custom_name}.yaml"
+              manifest="custom_${custom_name}"
+              profile=default
+              maximum_plan_usd=5.00
+              mode=submit
+            elif [[ "${REF_NAME}" =~ ^train-(smoke|anchor|screen|finalists|scale)-[a-z0-9][a-z0-9._-]{0,47}$ ]]; then
+              case "${REF_NAME}" in
+              train-smoke-*)
+                manifest=smoke
+                profile=default
+                maximum_plan_usd=0.80
+                mode=submit
+                ;;
+              train-anchor-*)
+                manifest=umaze_exact_anchor
+                profile=minimal
+                maximum_plan_usd=115.20
+                mode=plan-only
+                ;;
+              train-screen-*)
+                manifest=screening_funnel
+                profile=default
+                maximum_plan_usd=86.40
+                mode=plan-only
+                ;;
+              train-finalists-*)
+                manifest=finalists
+                profile=default
+                maximum_plan_usd=86.40
+                mode=plan-only
+                ;;
+              train-scale-*)
+                manifest=scaling_trend
+                profile=default
+                maximum_plan_usd=86.40
+                mode=plan-only
+                ;;
+              *)
+                echo "No static manifest mapping exists for ${REF_NAME}." >&2
+                exit 2
+                ;;
+              esac
+            else
+              echo "Invalid training tag or unsafe custom-run slug." >&2
+              exit 2
+            fi
+            trigger_label="tag:${REF_NAME}"
+          elif [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
+            [[ "${REF_VALUE}" == "refs/heads/infra" ]] || {
+              echo "Manual planning runs only from infra." >&2
+              exit 2
+            }
+            manifest=smoke
+            profile=default
+            maximum_plan_usd=0.80
+            mode=plan-only
+            custom_spec=""
+            custom_name=""
+            chunk_family=""
+            chunk_variant=""
+            chunk_seed_index=""
+            chunk_rollouts=""
+            trigger_label="manual:${GITHUB_ACTOR}"
+          else
+            echo "Unsupported event ${EVENT_NAME}." >&2
+            exit 2
+          fi
+
+          {
+            echo "manifest=${manifest}"
+            echo "profile=${profile}"
+            echo "maximum_plan_usd=${maximum_plan_usd}"
+            echo "maximum_hourly_usd=0.40"
+            echo "mode=${mode}"
+            echo "custom_spec=${custom_spec}"
+            echo "custom_name=${custom_name}"
+            echo "chunk_family=${chunk_family}"
+            echo "chunk_variant=${chunk_variant}"
+            echo "chunk_seed_index=${chunk_seed_index}"
+            echo "chunk_rollouts=${chunk_rollouts}"
+            echo "source_revision=${trusted_revision}"
+            echo "trigger_label=${trigger_label}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: Install the manifest dependency
+        run: python -m pip install --disable-pip-version-check PyYAML==6.0.3
+
+      - name: Validate the declarative custom request before AWS authentication
+        if: steps.resolve.outputs.custom_spec != ''
+        env:
+          CUSTOM_NAME: ${{ steps.resolve.outputs.custom_name }}
+          CUSTOM_SPEC: ${{ steps.resolve.outputs.custom_spec }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m infra.experiments.custom_manifest compile \
+            "${CUSTOM_SPEC}" \
+            --expected-name "${CUSTOM_NAME}" \
+            --output /tmp/custom-manifest-preflight.yaml
+
+      - name: Validate the built-in chunk before AWS authentication
+        if: steps.resolve.outputs.chunk_family != ''
+        env:
+          CHUNK_FAMILY: ${{ steps.resolve.outputs.chunk_family }}
+          CHUNK_ROLLOUTS: ${{ steps.resolve.outputs.chunk_rollouts }}
+          CHUNK_SEED_INDEX: ${{ steps.resolve.outputs.chunk_seed_index }}
+          CHUNK_VARIANT: ${{ steps.resolve.outputs.chunk_variant }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m infra.experiments.builtin_chunk compile \
+            --family "${CHUNK_FAMILY}" \
+            --variant "${CHUNK_VARIANT}" \
+            --seed-index "${CHUNK_SEED_INDEX}" \
+            --rollouts "${CHUNK_ROLLOUTS}" \
+            --output /tmp/builtin-chunk-preflight.yaml
+
+      - name: Validate repository variables
+        env:
+          BROKER_ROLE_ARN: ${{ vars.AWS_GITHUB_SUBMIT_ROLE_ARN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${BROKER_ROLE_ARN}" || {
+            echo "Missing trigger-appropriate AWS role repository variable." >&2
+            exit 2
+          }
+
+      - name: Assume the pinned experiment broker role
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
+        with:
+          role-to-assume: ${{ vars.AWS_GITHUB_SUBMIT_ROLE_ARN }}
+          role-session-name: github-experiment-broker
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Resolve immutable stack outputs
+        id: stack
+        env:
+          SOURCE_REVISION: ${{ steps.resolve.outputs.source_revision }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          output() {
+            aws cloudformation describe-stacks \
+              --stack-name "${STACK_NAME}" \
+              --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue | [0]" \
+              --output text
+          }
+          bucket="$(output ArtifactBucketName)"
+          queue="$(output GpuJobQueueArn)"
+          definition="$(output GpuJobDefinitionArn)"
+          project_name="$(output ProjectName)"
+          dataset_uri="$(output UmazeDatasetUri)"
+          goal_set_uri="$(output UmazeGoalSetUri)"
+          for value in "${bucket}" "${queue}" "${definition}" "${project_name}" "${dataset_uri}" "${goal_set_uri}"; do
+            [[ -n "${value}" && "${value}" != "None" ]] || {
+              echo "The infrastructure stack is missing a required output." >&2
+              exit 2
+            }
+          done
+          [[ "${dataset_uri}" == "s3://${bucket}/datasets/point_maze_umaze.zip" ]] || {
+            echo "The stack returned a non-canonical UMaze dataset URI." >&2
+            exit 2
+          }
+          [[ "${goal_set_uri}" == "s3://${bucket}/goals/umaze_fixed_v1.pkl" ]] || {
+            echo "The stack returned a non-canonical UMaze goal-set URI." >&2
+            exit 2
+          }
+          echo "artifact_bucket=${bucket}" >> "${GITHUB_OUTPUT}"
+          echo "artifact_prefix=s3://${bucket}/jobs/${SOURCE_REVISION}" >> "${GITHUB_OUTPUT}"
+          echo "dataset_uri=${dataset_uri}" >> "${GITHUB_OUTPUT}"
+          echo "goal_set_uri=${goal_set_uri}" >> "${GITHUB_OUTPUT}"
+          echo "queue=${queue}" >> "${GITHUB_OUTPUT}"
+          echo "definition=${definition}" >> "${GITHUB_OUTPUT}"
+          echo "project_name=${project_name}" >> "${GITHUB_OUTPUT}"
+
+      - name: Pin canonical input metadata
+        id: inputs
+        env:
+          ARTIFACT_BUCKET: ${{ steps.stack.outputs.artifact_bucket }}
+          DATASET_URI: ${{ steps.stack.outputs.dataset_uri }}
+          GOAL_SET_URI: ${{ steps.stack.outputs.goal_set_uri }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws s3api head-object \
+            --bucket "${ARTIFACT_BUCKET}" \
+            --key datasets/point_maze_umaze.zip > dataset-head.json
+          aws s3api head-object \
+            --bucket "${ARTIFACT_BUCKET}" \
+            --key goals/umaze_fixed_v1.pkl > goals-head.json
+          python - <<'PY' >> "${GITHUB_OUTPUT}"
+          import json
+          import re
+
+          for output_name, filename in (
+              ("dataset_sha256", "dataset-head.json"),
+              ("goals_sha256", "goals-head.json"),
+          ):
+              head = json.load(open(filename, encoding="utf-8"))
+              digest = head.get("Metadata", {}).get("sha256", "").lower()
+              if not re.fullmatch(r"[0-9a-f]{64}", digest):
+                  raise SystemExit(
+                      f"{filename} must contain canonical S3 metadata sha256=<64 hex>"
+                  )
+              version_id = head.get("VersionId")
+              if not isinstance(version_id, str) or not version_id:
+                  raise SystemExit(f"{filename} has no version ID; bucket versioning is required")
+              print(f"{output_name}={digest}")
+              print(f"{output_name.removesuffix('_sha256')}_version_id={version_id}")
+          PY
+          echo "dataset_uri=${DATASET_URI}" >> "${GITHUB_OUTPUT}"
+          echo "goal_set_uri=${GOAL_SET_URI}" >> "${GITHUB_OUTPUT}"
+
+      - name: Verify the fixed one-GPU execution contract
+        env:
+          JOB_DEFINITION: ${{ steps.stack.outputs.definition }}
+          JOB_QUEUE: ${{ steps.stack.outputs.queue }}
+          SOURCE_REVISION: ${{ steps.resolve.outputs.source_revision }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws batch describe-job-definitions \
+            --job-definitions "${JOB_DEFINITION}" > job-definition.json
+          aws batch describe-job-queues \
+            --job-queues "${JOB_QUEUE}" > job-queue.json
+          compute_environment="$(python - <<'PY'
+          import json
+
+          queues = json.load(open("job-queue.json", encoding="utf-8"))["jobQueues"]
+          if len(queues) != 1:
+              raise SystemExit("expected exactly one live GPU job queue")
+          order = queues[0].get("computeEnvironmentOrder", [])
+          if len(order) != 1 or order[0].get("order") != 1:
+              raise SystemExit("GPU queue must contain exactly one priority-1 compute environment")
+          print(order[0]["computeEnvironment"])
+          PY
+          )"
+          aws batch describe-compute-environments \
+            --compute-environments "${compute_environment}" > compute-environment.json
+          python - <<'PY'
+          import json
+          import os
+          import re
+
+          queues = json.load(open("job-queue.json", encoding="utf-8"))["jobQueues"]
+          queue = queues[0]
+          if queue.get("state") != "ENABLED" or queue.get("status") != "VALID":
+              raise SystemExit("GPU job queue must be ENABLED and VALID")
+          order = queue["computeEnvironmentOrder"]
+          environments = json.load(
+              open("compute-environment.json", encoding="utf-8")
+          )["computeEnvironments"]
+          if len(environments) != 1:
+              raise SystemExit("expected exactly one live GPU compute environment")
+          environment = environments[0]
+          if environment.get("computeEnvironmentArn") != order[0]["computeEnvironment"]:
+              raise SystemExit("described GPU compute environment does not match the queue")
+          if environment.get("type") != "MANAGED":
+              raise SystemExit("GPU compute environment must be managed by Batch")
+          if environment.get("state") != "ENABLED" or environment.get("status") != "VALID":
+              raise SystemExit("GPU compute environment must be ENABLED and VALID")
+          compute = environment.get("computeResources", {})
+          expected_compute = {
+              "type": "SPOT",
+              "allocationStrategy": "SPOT_PRICE_CAPACITY_OPTIMIZED",
+              "instanceTypes": ["g6.2xlarge"],
+              "minvCpus": 0,
+              "maxvCpus": 8,
+              "bidPercentage": 40,
+          }
+          for key, expected in expected_compute.items():
+              if compute.get(key) != expected:
+                  raise SystemExit(
+                      f"live GPU compute environment drifted: {key}={compute.get(key)!r}, "
+                      f"expected {expected!r}"
+                  )
+
+          definitions = json.load(open("job-definition.json", encoding="utf-8"))[
+              "jobDefinitions"
+          ]
+          if len(definitions) != 1 or definitions[0].get("status") != "ACTIVE":
+              raise SystemExit("expected exactly one active GPU job definition")
+          definition = definitions[0]
+          resources = {
+              item["type"]: item["value"]
+              for item in definition["containerProperties"]["resourceRequirements"]
+          }
+          if resources.get("GPU") != "1":
+              raise SystemExit("broker job definition must request exactly one GPU")
+          if definition.get("retryStrategy", {}).get("attempts") != 2:
+              raise SystemExit("broker job definition must have exactly two attempts")
+          timeout = definition.get("timeout", {}).get("attemptDurationSeconds", 0)
+          if not isinstance(timeout, int) or timeout <= 0 or timeout > 86400:
+              raise SystemExit("broker job definition timeout is missing or exceeds 24 hours")
+          if definition.get("platformCapabilities") != ["EC2"]:
+              raise SystemExit("GPU broker accepts only the fixed EC2 job definition")
+          image = definition["containerProperties"].get("image", "")
+          image_tag = image.rsplit(":", 1)[-1]
+          source_prefix = os.environ["SOURCE_REVISION"][:12]
+          if image_tag != source_prefix and not re.fullmatch(
+              rf"git-{source_prefix}-[0-9a-f]{{16}}", image_tag
+          ):
+              raise SystemExit(
+                  "job definition does not reference an immutable tag for this source revision"
+              )
+          PY
+
+      - name: Build the deterministic array plan
+        id: plan
+        env:
+          CUSTOM_NAME: ${{ steps.resolve.outputs.custom_name }}
+          CUSTOM_SPEC: ${{ steps.resolve.outputs.custom_spec }}
+          CHUNK_FAMILY: ${{ steps.resolve.outputs.chunk_family }}
+          CHUNK_ROLLOUTS: ${{ steps.resolve.outputs.chunk_rollouts }}
+          CHUNK_SEED_INDEX: ${{ steps.resolve.outputs.chunk_seed_index }}
+          CHUNK_VARIANT: ${{ steps.resolve.outputs.chunk_variant }}
+          MANIFEST_NAME: ${{ steps.resolve.outputs.manifest }}
+          MAXIMUM_PLAN_USD: ${{ steps.resolve.outputs.maximum_plan_usd }}
+          PROFILE: ${{ steps.resolve.outputs.profile }}
+          TS_ARTIFACT_PREFIX: ${{ steps.stack.outputs.artifact_prefix }}
+          TS_UMAZE_DATASET_S3_URI: ${{ steps.inputs.outputs.dataset_uri }}
+          TS_UMAZE_DATASET_SHA256: ${{ steps.inputs.outputs.dataset_sha256 }}
+          TS_UMAZE_DATASET_VERSION_ID: ${{ steps.inputs.outputs.dataset_version_id }}
+          TS_UMAZE_GOALS_S3_URI: ${{ steps.inputs.outputs.goal_set_uri }}
+          TS_UMAZE_GOALS_SHA256: ${{ steps.inputs.outputs.goals_sha256 }}
+          TS_UMAZE_GOALS_VERSION_ID: ${{ steps.inputs.outputs.goals_version_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${CHUNK_FAMILY}" ]]; then
+            python -m infra.experiments.builtin_chunk plan \
+              --family "${CHUNK_FAMILY}" \
+              --variant "${CHUNK_VARIANT}" \
+              --seed-index "${CHUNK_SEED_INDEX}" \
+              --rollouts "${CHUNK_ROLLOUTS}" \
+              --budget-usd "${MAXIMUM_PLAN_USD}" \
+              --output plan.json
+          elif [[ -n "${CUSTOM_SPEC}" ]]; then
+            python -m infra.experiments.custom_manifest plan \
+              "${CUSTOM_SPEC}" \
+              --expected-name "${CUSTOM_NAME}" \
+              --budget-usd "${MAXIMUM_PLAN_USD}" \
+              --output plan.json
+          else
+            manifest="infra/experiments/manifests/${MANIFEST_NAME}.yaml"
+            python -m infra.experiments.runner plan \
+              "${manifest}" \
+              --profile "${PROFILE}" \
+              --budget-usd "${MAXIMUM_PLAN_USD}" \
+              --output plan.json
+          fi
+          python - <<'PY' >> "${GITHUB_OUTPUT}"
+          import json
+          import os
+
+          plan = json.load(open("plan.json", encoding="utf-8"))
+          maximum_one_attempt = plan["maximum_one_attempt_usd"]
+          maximum_with_retries = plan["maximum_total_usd"]
+          submission_ceiling = float(os.environ["MAXIMUM_PLAN_USD"])
+          if maximum_with_retries > submission_ceiling:
+              raise SystemExit(
+                  f"two-attempt maximum ${maximum_with_retries:.2f} exceeds "
+                  f"static broker ceiling ${submission_ceiling:.2f}"
+              )
+          print(f"array_size={plan['array_size']}")
+          print(f"plan_digest={plan['plan_digest']}")
+          print(f"maximum_one_attempt_usd={maximum_one_attempt}")
+          print(f"maximum_with_retries_usd={maximum_with_retries}")
+          PY
+
+      - name: Save the preflight plan
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: aws-plan-${{ steps.resolve.outputs.manifest }}-${{ github.run_id }}
+          path: plan.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Recheck the current L4 Spot rate immediately before submission
+        if: steps.resolve.outputs.mode == 'submit'
+        id: price
+        env:
+          MAXIMUM_HOURLY_USD: ${{ steps.resolve.outputs.maximum_hourly_usd }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws ec2 describe-spot-price-history \
+            --instance-types g6.2xlarge \
+            --product-descriptions Linux/UNIX \
+            --start-time "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --max-results 20 > spot-prices.json
+          python - <<'PY' >> "${GITHUB_OUTPUT}"
+          import json
+          import os
+
+          prices = [
+              float(item["SpotPrice"])
+              for item in json.load(open("spot-prices.json", encoding="utf-8"))[
+                  "SpotPriceHistory"
+              ]
+          ]
+          if not prices:
+              raise SystemExit("AWS returned no current g6.2xlarge Spot prices; refusing submission")
+          live = max(prices)
+          ceiling = float(os.environ["MAXIMUM_HOURLY_USD"])
+          if live > ceiling:
+              raise SystemExit(
+                  f"live Spot rate ${live:.6f}/h exceeds ceiling ${ceiling:.6f}/h"
+              )
+          print(f"hourly_usd={live:.6f}")
+          PY
+
+      - name: Recover idempotency state and expire stranded legacy locks
+        if: steps.resolve.outputs.mode == 'submit'
+        id: idempotency
+        env:
+          ARTIFACT_BUCKET: ${{ steps.stack.outputs.artifact_bucket }}
+          JOB_QUEUE: ${{ steps.stack.outputs.queue }}
+          MANIFEST_NAME: ${{ steps.resolve.outputs.manifest }}
+          PLAN_DIGEST: ${{ steps.plan.outputs.plan_digest }}
+          PROFILE: ${{ steps.resolve.outputs.profile }}
+          SOURCE_REVISION: ${{ steps.resolve.outputs.source_revision }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          short_revision="${SOURCE_REVISION:0:12}"
+          job_name="ts-${MANIFEST_NAME//_/-}-${short_revision}"
+          marker_key="submissions/${MANIFEST_NAME}/${SOURCE_REVISION}.json"
+          marker_exists=false
+          marker_etag=""
+          marker_state=""
+          marker_job_id=""
+          if aws s3api head-object \
+            --bucket "${ARTIFACT_BUCKET}" \
+            --key "${marker_key}" > marker-head.json 2> marker-head.err; then
+            marker_exists=true
+            marker_etag="$(python - <<'PY'
+          import json
+
+          etag = json.load(open("marker-head.json", encoding="utf-8")).get("ETag")
+          if not isinstance(etag, str) or not etag:
+              raise SystemExit("submission marker has no ETag")
+          print(etag)
+          PY
+            )"
+          elif grep -Eq '\((404|NoSuchKey|NotFound)\)|Not Found' marker-head.err; then
+            marker_exists=false
+          else
+            cat marker-head.err >&2
+            echo "Unable to determine whether a submission marker exists." >&2
+            exit 2
+          fi
+          if [[ "${marker_exists}" == "true" ]]; then
+            aws s3 cp \
+              "s3://${ARTIFACT_BUCKET}/${marker_key}" submission-marker.json \
+              --only-show-errors
+            python - <<'PY'
+          import json
+          import os
+
+          marker = json.load(open("submission-marker.json", encoding="utf-8"))
+          expected = {
+              "manifest": os.environ["MANIFEST_NAME"],
+              "profile": os.environ["PROFILE"],
+              "source_revision": os.environ["SOURCE_REVISION"],
+              "plan_digest": os.environ["PLAN_DIGEST"],
+          }
+          for key, value in expected.items():
+              if marker.get(key) != value:
+                  raise SystemExit(f"submission marker mismatch for {key}")
+          job_id = marker.get("job_id")
+          state = marker.get("state", "submitted" if job_id else None)
+          if job_id is not None and (not isinstance(job_id, str) or not job_id):
+              raise SystemExit("submission marker job_id is malformed")
+          if state not in {"reserved", "expired", "submitted"}:
+              raise SystemExit(f"submission marker has unsupported state {state!r}")
+          if state == "submitted" and not job_id:
+              raise SystemExit("submitted marker has no job_id")
+          with open("marker-validation.json", "w", encoding="utf-8") as handle:
+              json.dump({"job_id": job_id or "", "state": state}, handle)
+          PY
+            marker_state="$(python -c 'import json; print(json.load(open("marker-validation.json"))["state"])')"
+            marker_job_id="$(python -c 'import json; print(json.load(open("marker-validation.json"))["job_id"])')"
+            if [[ -n "${marker_job_id}" ]]; then
+              echo "existing_job_id=${marker_job_id}" >> "${GITHUB_OUTPUT}"
+              echo "job_name=${job_name}" >> "${GITHUB_OUTPUT}"
+              echo "marker_key=${marker_key}" >> "${GITHUB_OUTPUT}"
+              echo "should_submit=false" >> "${GITHUB_OUTPUT}"
+              exit 0
+            fi
+          fi
+
+          aws batch list-jobs \
+            --job-queue "${JOB_QUEUE}" \
+            --filters "name=JOB_NAME,values=${job_name}" > existing-jobs.json
+          mapfile -t candidate_job_ids < <(JOB_NAME="${job_name}" python - <<'PY'
+          import json
+          import os
+
+          expected = os.environ["JOB_NAME"]
+          with open("existing-jobs.json", encoding="utf-8") as handle:
+              summaries = json.load(handle)["jobSummaryList"]
+          for item in summaries:
+              if item.get("jobName") == expected:
+                  print(item["jobId"])
+          PY
+          )
+          existing_job_id=""
+          if (( ${#candidate_job_ids[@]} > 0 )); then
+            aws batch describe-jobs --jobs "${candidate_job_ids[@]}" > existing-job.json
+            existing_job_id="$(python - <<'PY'
+          import json
+          import os
+
+          jobs = json.load(open("existing-job.json", encoding="utf-8"))["jobs"]
+          expected = {
+              "PlanDigest": os.environ["PLAN_DIGEST"],
+              "SourceRevision": os.environ["SOURCE_REVISION"],
+          }
+          matches = [
+              job
+              for job in jobs
+              if all(job.get("tags", {}).get(key) == value for key, value in expected.items())
+          ]
+          if len(matches) > 1:
+              raise SystemExit("deterministic Batch job lookup was ambiguous")
+          if not matches and jobs:
+              raise SystemExit("deterministic Batch job name exists with mismatched tags")
+          if matches:
+              print(matches[0]["jobId"])
+          PY
+            )"
+          fi
+          if [[ -n "${existing_job_id}" ]]; then
+            JOB_ID="${existing_job_id}" TRIGGER_LABEL="recovered-existing-job" python - <<'PY'
+          import json
+          import os
+          from datetime import datetime, timezone
+
+          marker = {
+              "job_id": os.environ["JOB_ID"],
+              "manifest": os.environ["MANIFEST_NAME"],
+              "profile": os.environ["PROFILE"],
+              "source_revision": os.environ["SOURCE_REVISION"],
+              "plan_digest": os.environ["PLAN_DIGEST"],
+              "trigger": os.environ["TRIGGER_LABEL"],
+              "state": "submitted",
+              "recorded_at": datetime.now(timezone.utc).isoformat(),
+          }
+          with open("submission-marker.json", "w", encoding="utf-8") as handle:
+              json.dump(marker, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+          PY
+            condition=(--if-none-match '*')
+            if [[ "${marker_exists}" == "true" ]]; then
+              condition=(--if-match "${marker_etag}")
+            fi
+            aws s3api put-object \
+              --bucket "${ARTIFACT_BUCKET}" \
+              --key "${marker_key}" \
+              --body submission-marker.json \
+              "${condition[@]}" > /dev/null
+            echo "existing_job_id=${existing_job_id}" >> "${GITHUB_OUTPUT}"
+            echo "job_name=${job_name}" >> "${GITHUB_OUTPUT}"
+            echo "marker_key=${marker_key}" >> "${GITHUB_OUTPUT}"
+            echo "should_submit=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          if [[ "${marker_exists}" == "true" && "${marker_state}" == "reserved" ]]; then
+            python - <<'PY'
+          import json
+          from datetime import datetime, timezone
+
+          last_modified = json.load(open("marker-head.json", encoding="utf-8")).get(
+              "LastModified"
+          )
+          if not isinstance(last_modified, str):
+              raise SystemExit("legacy reservation has no LastModified timestamp")
+          written = datetime.fromisoformat(last_modified.replace("Z", "+00:00"))
+          age = datetime.now(timezone.utc) - written
+          if age.total_seconds() < 900:
+              raise SystemExit(
+                  "legacy reservation has no Batch job but remains inside its "
+                  "15-minute recovery grace; retry after the grace expires"
+              )
+          PY
+            python - <<'PY'
+          import json
+          import os
+          from datetime import datetime, timezone
+
+          expired = {
+              "job_id": None,
+              "manifest": os.environ["MANIFEST_NAME"],
+              "profile": os.environ["PROFILE"],
+              "source_revision": os.environ["SOURCE_REVISION"],
+              "plan_digest": os.environ["PLAN_DIGEST"],
+              "state": "expired",
+              "release_reason": "legacy-reservation-with-no-batch-job",
+              "released_at": datetime.now(timezone.utc).isoformat(),
+          }
+          with open("expired-submission-marker.json", "w", encoding="utf-8") as handle:
+              json.dump(expired, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+          PY
+            aws s3api put-object \
+              --bucket "${ARTIFACT_BUCKET}" \
+              --key "${marker_key}" \
+              --body expired-submission-marker.json \
+              --if-match "${marker_etag}" > /dev/null
+          fi
+          echo "existing_job_id=" >> "${GITHUB_OUTPUT}"
+          echo "job_name=${job_name}" >> "${GITHUB_OUTPUT}"
+          echo "marker_key=${marker_key}" >> "${GITHUB_OUTPUT}"
+          echo "should_submit=true" >> "${GITHUB_OUTPUT}"
+
+      - name: Reserve aggregate budget with the S3 admission lease
+        if: steps.resolve.outputs.mode == 'submit' && steps.idempotency.outputs.should_submit == 'true'
+        id: ledger
+        env:
+          ARTIFACT_BUCKET: ${{ steps.stack.outputs.artifact_bucket }}
+          JOB_NAME: ${{ steps.idempotency.outputs.job_name }}
+          JOB_QUEUE: ${{ steps.stack.outputs.queue }}
+          MANIFEST_NAME: ${{ steps.resolve.outputs.manifest }}
+          MAXIMUM_WITH_RETRIES_USD: ${{ steps.plan.outputs.maximum_with_retries_usd }}
+          PLAN_DIGEST: ${{ steps.plan.outputs.plan_digest }}
+          PROFILE: ${{ steps.resolve.outputs.profile }}
+          RESERVATION_OWNER: ${{ format('{0}:{1}', github.run_id, github.run_attempt) }}
+          SOURCE_REVISION: ${{ steps.resolve.outputs.source_revision }}
+          TRIGGER_LABEL: ${{ steps.resolve.outputs.trigger_label }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m infra.experiments.broker_ledger reserve \
+            --bucket "${ARTIFACT_BUCKET}" \
+            --queue "${JOB_QUEUE}" \
+            --budget-name ts-net-out-of-pocket-20 \
+            --manifest "${MANIFEST_NAME}" \
+            --profile "${PROFILE}" \
+            --source-revision "${SOURCE_REVISION}" \
+            --plan-digest "${PLAN_DIGEST}" \
+            --maximum-total-usd "${MAXIMUM_WITH_RETRIES_USD}" \
+            --job-name "${JOB_NAME}" \
+            --owner "${RESERVATION_OWNER}" \
+            --trigger "${TRIGGER_LABEL}" \
+            --output budget-admission.json \
+            --github-output "${GITHUB_OUTPUT}"
+
+      - name: Submit the cost-bounded GPU array
+        if: steps.resolve.outputs.mode == 'submit' && steps.ledger.outputs.should_submit == 'true'
+        id: submit
+        env:
+          ARRAY_SIZE: ${{ steps.plan.outputs.array_size }}
+          CUSTOM_NAME: ${{ steps.resolve.outputs.custom_name }}
+          CUSTOM_SPEC: ${{ steps.resolve.outputs.custom_spec }}
+          CHUNK_FAMILY: ${{ steps.resolve.outputs.chunk_family }}
+          CHUNK_ROLLOUTS: ${{ steps.resolve.outputs.chunk_rollouts }}
+          CHUNK_SEED_INDEX: ${{ steps.resolve.outputs.chunk_seed_index }}
+          CHUNK_VARIANT: ${{ steps.resolve.outputs.chunk_variant }}
+          EXPECTED_PLAN_DIGEST: ${{ steps.plan.outputs.plan_digest }}
+          EXPECTED_SOURCE_REVISION: ${{ steps.resolve.outputs.source_revision }}
+          # Workers budget against the reviewed manifest ceiling, never a stale
+          # pre-submit sample that can be overtaken by a later Spot-price move.
+          HOURLY_USD: ${{ steps.resolve.outputs.maximum_hourly_usd }}
+          JOB_DEFINITION: ${{ steps.stack.outputs.definition }}
+          JOB_NAME: ${{ steps.idempotency.outputs.job_name }}
+          JOB_QUEUE: ${{ steps.stack.outputs.queue }}
+          MANIFEST_NAME: ${{ steps.resolve.outputs.manifest }}
+          PLAN_DIGEST: ${{ steps.plan.outputs.plan_digest }}
+          PROFILE: ${{ steps.resolve.outputs.profile }}
+          PROJECT_NAME: ${{ steps.stack.outputs.project_name }}
+          TRIGGER_LABEL: ${{ steps.resolve.outputs.trigger_label }}
+          TS_ARTIFACT_PREFIX: ${{ steps.stack.outputs.artifact_prefix }}
+          TS_UMAZE_DATASET_S3_URI: ${{ steps.inputs.outputs.dataset_uri }}
+          TS_UMAZE_DATASET_SHA256: ${{ steps.inputs.outputs.dataset_sha256 }}
+          TS_UMAZE_DATASET_VERSION_ID: ${{ steps.inputs.outputs.dataset_version_id }}
+          TS_UMAZE_GOALS_S3_URI: ${{ steps.inputs.outputs.goal_set_uri }}
+          TS_UMAZE_GOALS_SHA256: ${{ steps.inputs.outputs.goals_sha256 }}
+          TS_UMAZE_GOALS_VERSION_ID: ${{ steps.inputs.outputs.goals_version_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          overrides="$(python - <<'PY'
+          import json
+          import os
+
+          names = (
+              "TS_UMAZE_DATASET_S3_URI",
+              "TS_UMAZE_DATASET_SHA256",
+              "TS_UMAZE_DATASET_VERSION_ID",
+              "TS_UMAZE_GOALS_S3_URI",
+              "TS_UMAZE_GOALS_SHA256",
+              "TS_UMAZE_GOALS_VERSION_ID",
+              "TS_ARTIFACT_PREFIX",
+              "EXPECTED_PLAN_DIGEST",
+              "EXPECTED_SOURCE_REVISION",
+          )
+          if os.environ["CHUNK_FAMILY"]:
+              command = [
+                  "python", "-m", "infra.experiments.builtin_chunk", "run",
+                  "--family", os.environ["CHUNK_FAMILY"],
+                  "--variant", os.environ["CHUNK_VARIANT"],
+                  "--seed-index", os.environ["CHUNK_SEED_INDEX"],
+                  "--rollouts", os.environ["CHUNK_ROLLOUTS"],
+              ]
+          elif os.environ["CUSTOM_SPEC"]:
+              command = [
+                  "python", "-m", "infra.experiments.custom_manifest", "run",
+                  os.environ["CUSTOM_SPEC"],
+                  "--expected-name", os.environ["CUSTOM_NAME"],
+              ]
+          else:
+              manifest = f"infra/experiments/manifests/{os.environ['MANIFEST_NAME']}.yaml"
+              command = [
+                  "python", "-m", "infra.experiments.runner", "run",
+                  manifest, "--profile", os.environ["PROFILE"],
+              ]
+          if int(os.environ["ARRAY_SIZE"]) == 1:
+              command.extend(("--index", "0"))
+          environment = [
+              {"name": name, "value": os.environ[name]} for name in names
+          ]
+          environment.append(
+              {"name": "EXPERIMENT_HOURLY_USD", "value": os.environ["HOURLY_USD"]}
+          )
+          print(json.dumps({"command": command, "environment": environment}, separators=(",", ":")))
+          PY
+          )"
+          arguments=(
+            --job-name "${JOB_NAME}"
+            --job-queue "${JOB_QUEUE}"
+            --job-definition "${JOB_DEFINITION}"
+            --container-overrides "${overrides}"
+            --propagate-tags
+            --tags "Project=${PROJECT_NAME},Source=github-broker,PlanDigest=${PLAN_DIGEST},SourceRevision=${EXPECTED_SOURCE_REVISION},Trigger=${TRIGGER_LABEL}"
+          )
+          if (( ARRAY_SIZE > 1 )); then
+            arguments+=(--array-properties "size=${ARRAY_SIZE}")
+          fi
+          job_id="$(aws batch submit-job "${arguments[@]}" --query jobId --output text)"
+          [[ "${job_id}" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || {
+            echo "Batch submission returned an invalid job ID; retaining the reservation." >&2
+            exit 2
+          }
+          echo "job_id=${job_id}" >> "${GITHUB_OUTPUT}"
+
+      - name: Finalize or safely release the budget reservation
+        if: always() && steps.ledger.outputs.should_submit == 'true'
+        id: finalize
+        env:
+          ARTIFACT_BUCKET: ${{ steps.stack.outputs.artifact_bucket }}
+          JOB_ID: ${{ steps.submit.outputs.job_id }}
+          JOB_QUEUE: ${{ steps.stack.outputs.queue }}
+          LEDGER_KEY: ${{ steps.ledger.outputs.ledger_key }}
+          RESERVATION_OWNER: ${{ format('{0}:{1}', github.run_id, github.run_attempt) }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m infra.experiments.broker_ledger finalize \
+            --bucket "${ARTIFACT_BUCKET}" \
+            --queue "${JOB_QUEUE}" \
+            --ledger-key "${LEDGER_KEY}" \
+            --owner "${RESERVATION_OWNER}" \
+            --job-id "${JOB_ID}" \
+            --output budget-finalization.json \
+            --github-output "${GITHUB_OUTPUT}"
+
+      - name: Record the immutable submission marker
+        if: always() && steps.finalize.outputs.job_id != ''
+        env:
+          ARTIFACT_BUCKET: ${{ steps.stack.outputs.artifact_bucket }}
+          JOB_ID: ${{ steps.finalize.outputs.job_id }}
+          LEDGER_KEY: ${{ steps.ledger.outputs.ledger_key }}
+          MANIFEST_NAME: ${{ steps.resolve.outputs.manifest }}
+          MARKER_KEY: ${{ steps.idempotency.outputs.marker_key }}
+          PLAN_DIGEST: ${{ steps.plan.outputs.plan_digest }}
+          PROFILE: ${{ steps.resolve.outputs.profile }}
+          SOURCE_REVISION: ${{ steps.resolve.outputs.source_revision }}
+          TRIGGER_LABEL: ${{ steps.resolve.outputs.trigger_label }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from datetime import datetime, timezone
+
+          marker = {
+              "job_id": os.environ["JOB_ID"],
+              "ledger_key": os.environ["LEDGER_KEY"],
+              "manifest": os.environ["MANIFEST_NAME"],
+              "profile": os.environ["PROFILE"],
+              "source_revision": os.environ["SOURCE_REVISION"],
+              "plan_digest": os.environ["PLAN_DIGEST"],
+              "trigger": os.environ["TRIGGER_LABEL"],
+              "state": "submitted",
+              "recorded_at": datetime.now(timezone.utc).isoformat(),
+          }
+          with open("submission-marker.json", "w", encoding="utf-8") as handle:
+              json.dump(marker, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+          PY
+          condition=(--if-none-match '*')
+          if aws s3api head-object \
+            --bucket "${ARTIFACT_BUCKET}" \
+            --key "${MARKER_KEY}" > final-marker-head.json 2> final-marker-head.err; then
+            marker_etag="$(python - <<'PY'
+          import json
+
+          etag = json.load(open("final-marker-head.json", encoding="utf-8")).get("ETag")
+          if not isinstance(etag, str) or not etag:
+              raise SystemExit("existing marker has no ETag")
+          print(etag)
+          PY
+            )"
+            condition=(--if-match "${marker_etag}")
+          elif ! grep -Eq '\((404|NoSuchKey|NotFound)\)|Not Found' final-marker-head.err; then
+            cat final-marker-head.err >&2
+            exit 2
+          fi
+          aws s3api put-object \
+            --bucket "${ARTIFACT_BUCKET}" \
+            --key "${MARKER_KEY}" \
+            --body submission-marker.json \
+            "${condition[@]}" > /dev/null
+
+      - name: Summarize the broker decision
+        if: always() && steps.plan.outcome == 'success'
+        env:
+          ARRAY_SIZE: ${{ steps.plan.outputs.array_size }}
+          ACTUAL_USD: ${{ steps.ledger.outputs.actual_usd }}
+          BUDGET_LIMIT_USD: ${{ steps.ledger.outputs.budget_limit_usd }}
+          FINALIZED_JOB_ID: ${{ steps.finalize.outputs.job_id }}
+          IDEMPOTENT_JOB_ID: ${{ steps.idempotency.outputs.existing_job_id }}
+          LEDGER_EXISTING_JOB_ID: ${{ steps.ledger.outputs.existing_job_id }}
+          LEDGER_STATE: ${{ steps.finalize.outputs.state }}
+          LIVE_HOURLY_USD: ${{ steps.price.outputs.hourly_usd }}
+          MAXIMUM_ONE_ATTEMPT_USD: ${{ steps.plan.outputs.maximum_one_attempt_usd }}
+          MAXIMUM_WITH_RETRIES_USD: ${{ steps.plan.outputs.maximum_with_retries_usd }}
+          MODE: ${{ steps.resolve.outputs.mode }}
+          OUTSTANDING_USD: ${{ steps.ledger.outputs.outstanding_usd }}
+          PLAN_DIGEST: ${{ steps.plan.outputs.plan_digest }}
+          PROJECTED_USD: ${{ steps.ledger.outputs.projected_usd }}
+          SAFETY_RESERVE_USD: ${{ steps.ledger.outputs.safety_reserve_usd }}
+          SOURCE_REVISION: ${{ steps.resolve.outputs.source_revision }}
+          SUBMITTED_JOB_ID: ${{ steps.submit.outputs.job_id }}
+          TRIGGER_LABEL: ${{ steps.resolve.outputs.trigger_label }}
+          USABLE_ADMISSION_USD: ${{ steps.ledger.outputs.usable_admission_usd }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          final_job_id="${FINALIZED_JOB_ID:-${SUBMITTED_JOB_ID:-${LEDGER_EXISTING_JOB_ID:-${IDEMPOTENT_JOB_ID}}}}"
+          {
+            echo "### Trusted AWS broker decision"
+            echo ""
+            echo "- Trigger: \`${TRIGGER_LABEL}\`"
+            echo "- Array members: ${ARRAY_SIZE}"
+            echo "- Plan digest: \`${PLAN_DIGEST}\`"
+            echo "- Source revision: \`${SOURCE_REVISION}\`"
+            echo "- Declared one-attempt envelope: \$${MAXIMUM_ONE_ATTEMPT_USD}"
+            echo "- Two-attempt infrastructure-retry ceiling: \$${MAXIMUM_WITH_RETRIES_USD}"
+            if [[ "${MODE}" == "plan-only" ]]; then
+              echo ""
+              echo "Plan only: no Batch job was submitted."
+            elif [[ -n "${FINALIZED_JOB_ID}" ]]; then
+              echo "- Current worst-AZ g6.2xlarge Spot rate: \$${LIVE_HOURLY_USD}/hour"
+              echo "- Budget actual before reservation: \$${ACTUAL_USD}"
+              echo "- Outstanding worst-case before reservation: \$${OUTSTANDING_USD}"
+              echo "- Projected admitted maximum: \$${PROJECTED_USD} / \$${USABLE_ADMISSION_USD} usable"
+              echo "- Billing safety reserve: \$${SAFETY_RESERVE_USD} of the \$${BUDGET_LIMIT_USD} Budget"
+              echo "- Submitted job ID: \`${FINALIZED_JOB_ID}\`"
+            elif [[ "${LEDGER_STATE}" == "reserved" ]]; then
+              echo ""
+              echo "Submission outcome is ambiguous; the full budget reservation remains held for fail-closed recovery."
+            else
+              echo "- Existing job ID: \`${final_job_id}\`"
+              echo ""
+              echo "Idempotency blocked a duplicate submission."
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"

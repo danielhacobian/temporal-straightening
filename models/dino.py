@@ -1,4 +1,5 @@
 from __future__ import annotations
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -8,6 +9,9 @@ from pathlib import Path
 torch.hub._validate_not_a_forked_repo=lambda a,b,c: True
 
 logger = logging.getLogger(__name__)
+DINOV2_HUB_REPO = os.environ.get("DINOV2_HUB_REPO", "facebookresearch/dinov2")
+
+
 class GlobalProjector(nn.Module):
     def __init__(
         self,
@@ -119,7 +123,9 @@ class DinoV2Encoder(nn.Module):
     ):
         super().__init__()
         self.name = name
-        self.base_model = torch.hub.load("facebookresearch/dinov2", name)
+        # Production images set DINOV2_HUB_REPO to an immutable Git revision.
+        # The default preserves the upstream/local development behavior.
+        self.base_model = torch.hub.load(DINOV2_HUB_REPO, name)
         self.feature_key = feature_key
         self.emb_dim = self.base_model.num_features
         self.projector_name = projector

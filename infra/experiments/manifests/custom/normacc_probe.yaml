@@ -1,0 +1,14 @@
+schema_version: 1
+name: normacc_probe
+variant: normalized_acceleration
+rollouts: 50
+epochs: 10
+evaluation: proxy
+goal_count: 50
+seeds:
+  - data_seed: 10
+    train_seed: 20
+    planner_seed: 100
+limits:
+  max_hours: 4
+  max_usd: 2

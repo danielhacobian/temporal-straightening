@@ -1,0 +1,1377 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Cost-bounded AWS Batch infrastructure for temporal-straightening in us-east-2.
+  GPU training uses zero-idle EC2 Spot capacity; optional CPU screening uses
+  zero-idle Fargate Spot capacity.
+
+Metadata:
+  DeploymentRegion: us-east-2
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Project settings
+        Parameters:
+          - ProjectName
+          - ContainerImageTag
+          - EnableCpuFargate
+          - GpuJobTimeoutSeconds
+          - EnableExistingBudgetAction
+          - ExistingBudgetName
+          - BudgetAlertEmail
+      - Label:
+          default: GitHub federation
+        Parameters:
+          - GitHubOidcProviderArn
+    ParameterLabels:
+      GitHubOidcProviderArn:
+        default: Existing GitHub OIDC provider ARN (leave blank to create)
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: temporal-straightening
+    Description: Lowercase name used to prefix every named resource.
+    AllowedPattern: '^[a-z][a-z0-9-]{2,31}$'
+    ConstraintDescription: Use 3-32 lowercase letters, digits, or hyphens.
+  ContainerImageTag:
+    Type: String
+    Default: bootstrap
+    Description: ECR image tag referenced by the Batch job definitions.
+    AllowedPattern: '^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$'
+  EnableCpuFargate:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Create the small CPU Fargate Spot queue used for proxy analysis.
+  GpuJobTimeoutSeconds:
+    Type: Number
+    Default: 86400
+    MinValue: 3600
+    MaxValue: 86400
+    Description: Hard per-attempt timeout for GPU jobs (default and maximum 24 hours).
+  GitHubOidcProviderArn:
+    Type: String
+    Default: ''
+    Description: >-
+      ARN of an existing token.actions.githubusercontent.com provider. Leave blank
+      to let this stack create the account-global provider.
+  EnableExistingBudgetAction:
+    Type: String
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: >-
+      Add a 100%-actual action to an existing budget. This never creates or
+      modifies the budget itself.
+  ExistingBudgetName:
+    Type: String
+    Default: ts-net-out-of-pocket-20
+    AllowedPattern: '^[^:\\]{1,100}$'
+    Description: Existing COST budget that should disable normal launch paths.
+  BudgetAlertEmail:
+    Type: String
+    AllowedPattern: '^[^\s@]+@[^\s@]+\.[^\s@]+$'
+    Description: Required subscriber notified when the existing-budget action triggers.
+
+Rules:
+  RequireUsEast2:
+    Assertions:
+      - Assert: !Equals
+          - !Ref AWS::Region
+          - us-east-2
+        AssertDescription: This stack is intentionally restricted to us-east-2.
+
+Conditions:
+  CreateCpuFargate: !Equals
+    - !Ref EnableCpuFargate
+    - 'true'
+  CreateGitHubOidcProvider: !Equals
+    - !Ref GitHubOidcProviderArn
+    - ''
+  CreateExistingBudgetAction: !Equals
+    - !Ref EnableExistingBudgetAction
+    - 'true'
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.42.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      InstanceTenancy: default
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-vpc
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-igw
+        - Key: Project
+          Value: !Ref ProjectName
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref Vpc
+
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs ''
+      CidrBlock: 10.42.0.0/20
+      MapPublicIpOnLaunch: true
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-public-a
+        - Key: Project
+          Value: !Ref ProjectName
+
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select
+        - 1
+        - !GetAZs ''
+      CidrBlock: 10.42.16.0/20
+      MapPublicIpOnLaunch: true
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-public-b
+        - Key: Project
+          Value: !Ref ProjectName
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-public
+        - Key: Project
+          Value: !Ref ProjectName
+
+  PublicDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnetA
+
+  PublicSubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnetB
+
+  S3GatewayEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      RouteTableIds:
+        - !Ref PublicRouteTable
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      VpcEndpointType: Gateway
+      VpcId: !Ref Vpc
+
+  BatchSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Outbound-only access for ephemeral AWS Batch workers
+      SecurityGroupEgress:
+        - Description: HTTPS for AWS APIs and approved public datasets
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-batch-egress-only
+        - Key: Project
+          Value: !Ref ProjectName
+      VpcId: !Ref Vpc
+
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub ${ProjectName}-${AWS::AccountId}-${AWS::Region}-artifacts
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: AbortIncompleteUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+          - Id: ExpireScratch
+            Status: Enabled
+            Prefix: scratch/
+            ExpirationInDays: 7
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 7
+          - Id: TierCompletedJobArtifacts
+            Status: Enabled
+            Prefix: jobs/
+            Transitions:
+              - StorageClass: STANDARD_IA
+                TransitionInDays: 30
+              - StorageClass: GLACIER
+                TransitionInDays: 90
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 30
+          - Id: PruneOldDatasetVersions
+            Status: Enabled
+            Prefix: datasets/
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 30
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: ManagedBy
+          Value: CloudFormation
+      VersioningConfiguration:
+        Status: Enabled
+
+  ArtifactBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ArtifactBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource:
+              - !GetAtt ArtifactBucket.Arn
+              - !Sub ${ArtifactBucket.Arn}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: 'false'
+          - Sid: RequireConditionalBrokerStateWrites
+            Effect: Deny
+            Principal: '*'
+            Action: s3:PutObject
+            Resource:
+              - !Sub ${ArtifactBucket.Arn}/budget-ledger/*
+              - !Sub ${ArtifactBucket.Arn}/broker-locks/*
+              - !Sub ${ArtifactBucket.Arn}/submissions/*
+            Condition:
+              'Null':
+                s3:if-match: 'true'
+                s3:if-none-match: 'true'
+
+  TrainingRepository:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      EmptyOnDelete: false
+      EncryptionConfiguration:
+        EncryptionType: AES256
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      ImageTagMutability: IMMUTABLE
+      LifecyclePolicy:
+        LifecyclePolicyText: >-
+          {"rules":[{"rulePriority":1,"description":"Remove untagged build layers after 7 days","selection":{"tagStatus":"untagged","countType":"sinceImagePushed","countUnit":"days","countNumber":7},"action":{"type":"expire"}},{"rulePriority":2,"description":"Keep the 20 newest tagged images","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":20},"action":{"type":"expire"}}]}
+      RepositoryName: !Sub ${ProjectName}/training
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  BatchLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/batch/${ProjectName}
+      RetentionInDays: 14
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  BatchInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ProjectName}-batch-instance
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  BatchInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Sub ${ProjectName}-batch-instance
+      Roles:
+        - !Ref BatchInstanceRole
+
+  SpotFleetRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ProjectName}-spot-fleet
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: spotfleet.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AmazonEC2SpotFleetTaggingRole
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  JobExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ProjectName}-job-execution
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: PullImageAndWriteLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: EcrAuthorization
+                Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: '*'
+              - Sid: PullProjectImage
+                Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:BatchGetImage
+                  - ecr:GetDownloadUrlForLayer
+                Resource: !GetAtt TrainingRepository.Arn
+              - Sid: WriteBatchLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub ${BatchLogGroup.Arn}:*
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  JobRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ProjectName}-job
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ProjectArtifactsOnly
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: InspectArtifactBucket
+                Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt ArtifactBucket.Arn
+                Condition:
+                  StringLike:
+                    s3:prefix:
+                      - checkpoints/*
+                      - datasets/*
+                      - goals/*
+                      - jobs/*
+                      - scratch/*
+              - Sid: LocateArtifactBucket
+                Effect: Allow
+                Action: s3:GetBucketLocation
+                Resource: !GetAtt ArtifactBucket.Arn
+              - Sid: ReadProjectInputs
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                Resource:
+                  - !Sub ${ArtifactBucket.Arn}/checkpoints/*
+                  - !Sub ${ArtifactBucket.Arn}/datasets/*
+                  - !Sub ${ArtifactBucket.Arn}/goals/*
+              - Sid: ReadWriteJobArtifacts
+                Effect: Allow
+                Action:
+                  - s3:AbortMultipartUpload
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:ListMultipartUploadParts
+                  - s3:PutObject
+                Resource:
+                  - !Sub ${ArtifactBucket.Arn}/jobs/*
+                  - !Sub ${ArtifactBucket.Arn}/scratch/*
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  GpuLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              DeleteOnTermination: true
+              Encrypted: true
+              VolumeSize: 100
+              VolumeType: gp3
+        MetadataOptions:
+          HttpEndpoint: enabled
+          HttpPutResponseHopLimit: 1
+          HttpTokens: required
+        Monitoring:
+          Enabled: false
+        UserData:
+          Fn::Base64: |
+            MIME-Version: 1.0
+            Content-Type: multipart/mixed; boundary="==TSBOUNDARY=="
+
+            --==TSBOUNDARY==
+            Content-Type: text/x-shellscript; charset="us-ascii"
+
+            #!/bin/bash
+            echo ECS_CONTAINER_STOP_TIMEOUT=120s >> /etc/ecs/ecs.config
+
+            --==TSBOUNDARY==--
+      LaunchTemplateName: !Sub ${ProjectName}-gpu-batch
+      TagSpecifications:
+        - ResourceType: launch-template
+          Tags:
+            - Key: Project
+              Value: !Ref ProjectName
+
+  GpuComputeEnvironment:
+    Type: AWS::Batch::ComputeEnvironment
+    Properties:
+      ComputeEnvironmentName: !Sub ${ProjectName}-gpu-spot
+      ComputeResources:
+        AllocationStrategy: SPOT_PRICE_CAPACITY_OPTIMIZED
+        DesiredvCpus: 0
+        Ec2Configuration:
+          - ImageType: ECS_AL2023_NVIDIA
+        InstanceRole: !GetAtt BatchInstanceProfile.Arn
+        InstanceTypes:
+          - g6.2xlarge
+        LaunchTemplate:
+          LaunchTemplateId: !Ref GpuLaunchTemplate
+          Version: !GetAtt GpuLaunchTemplate.LatestVersionNumber
+        MaxvCpus: 8
+        MinvCpus: 0
+        SecurityGroupIds:
+          - !Ref BatchSecurityGroup
+        SpotIamFleetRole: !GetAtt SpotFleetRole.Arn
+        BidPercentage: 40
+        Subnets:
+          - !Ref PublicSubnetA
+          - !Ref PublicSubnetB
+        Tags:
+          Name: !Sub ${ProjectName}-gpu-spot-worker
+          Project: !Ref ProjectName
+        Type: SPOT
+      ReplaceComputeEnvironment: false
+      State: ENABLED
+      Type: MANAGED
+      UpdatePolicy:
+        JobExecutionTimeoutMinutes: 30
+        TerminateJobsOnUpdate: false
+
+  GpuJobQueue:
+    Type: AWS::Batch::JobQueue
+    Properties:
+      ComputeEnvironmentOrder:
+        - ComputeEnvironment: !Ref GpuComputeEnvironment
+          Order: 1
+      JobQueueName: !Sub ${ProjectName}-gpu
+      Priority: 100
+      State: ENABLED
+      Tags:
+        Project: !Ref ProjectName
+
+  GpuJobDefinition:
+    Type: AWS::Batch::JobDefinition
+    Properties:
+      ContainerProperties:
+        Command:
+          - python
+          - -m
+          - infra.container.smoke_test
+        Environment:
+          - Name: ARTIFACT_BUCKET
+            Value: !Ref ArtifactBucket
+          - Name: AWS_DEFAULT_REGION
+            Value: !Ref AWS::Region
+          - Name: D4RL_SUPPRESS_IMPORT_ERROR
+            Value: '1'
+          - Name: DATASET_DIR
+            Value: /workspace/data
+          - Name: EXPECT_GPU
+            Value: '1'
+          - Name: MUJOCO_GL
+            Value: osmesa
+          - Name: RUN_ROOT
+            Value: /workspace/run
+          - Name: TORCH_HOME
+            Value: /opt/torch-cache
+          - Name: WANDB_MODE
+            Value: disabled
+        ExecutionRoleArn: !GetAtt JobExecutionRole.Arn
+        Image: !Sub ${TrainingRepository.RepositoryUri}:${ContainerImageTag}
+        JobRoleArn: !GetAtt JobRole.Arn
+        LinuxParameters:
+          InitProcessEnabled: true
+          SharedMemorySize: 4096
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref BatchLogGroup
+            awslogs-region: !Ref AWS::Region
+            awslogs-stream-prefix: gpu
+        Privileged: false
+        ReadonlyRootFilesystem: false
+        ResourceRequirements:
+          - Type: GPU
+            Value: '1'
+          - Type: VCPU
+            Value: '8'
+          - Type: MEMORY
+            Value: '28672'
+      JobDefinitionName: !Sub ${ProjectName}-gpu
+      PlatformCapabilities:
+        - EC2
+      PropagateTags: true
+      RetryStrategy:
+        Attempts: 2
+        EvaluateOnExit:
+          - Action: RETRY
+            OnStatusReason: Host EC2*
+          - Action: RETRY
+            OnReason: AGENT
+          - Action: RETRY
+            OnStatusReason: Task failed to start*
+          - Action: EXIT
+            OnReason: '*'
+      Tags:
+        Project: !Ref ProjectName
+        Workload: gpu-training
+      Timeout:
+        AttemptDurationSeconds: !Ref GpuJobTimeoutSeconds
+      Type: container
+
+  CpuComputeEnvironment:
+    Type: AWS::Batch::ComputeEnvironment
+    Condition: CreateCpuFargate
+    Properties:
+      ComputeEnvironmentName: !Sub ${ProjectName}-cpu-fargate-spot
+      ComputeResources:
+        MaxvCpus: 16
+        SecurityGroupIds:
+          - !Ref BatchSecurityGroup
+        Subnets:
+          - !Ref PublicSubnetA
+          - !Ref PublicSubnetB
+        Type: FARGATE_SPOT
+      State: ENABLED
+      Type: MANAGED
+
+  CpuJobQueue:
+    Type: AWS::Batch::JobQueue
+    Condition: CreateCpuFargate
+    Properties:
+      ComputeEnvironmentOrder:
+        - ComputeEnvironment: !Ref CpuComputeEnvironment
+          Order: 1
+      JobQueueName: !Sub ${ProjectName}-cpu
+      Priority: 10
+      State: ENABLED
+      Tags:
+        Project: !Ref ProjectName
+
+  CpuJobDefinition:
+    Type: AWS::Batch::JobDefinition
+    Condition: CreateCpuFargate
+    Properties:
+      ContainerProperties:
+        Command:
+          - python
+          - -m
+          - infra.container.smoke_test
+        Environment:
+          - Name: ARTIFACT_BUCKET
+            Value: !Ref ArtifactBucket
+          - Name: AWS_DEFAULT_REGION
+            Value: !Ref AWS::Region
+          - Name: D4RL_SUPPRESS_IMPORT_ERROR
+            Value: '1'
+          - Name: DATASET_DIR
+            Value: /workspace/data
+          - Name: EXPECT_GPU
+            Value: '0'
+          - Name: MUJOCO_GL
+            Value: osmesa
+          - Name: RUN_ROOT
+            Value: /workspace/run
+          - Name: TORCH_HOME
+            Value: /opt/torch-cache
+          - Name: WANDB_MODE
+            Value: disabled
+        ExecutionRoleArn: !GetAtt JobExecutionRole.Arn
+        FargatePlatformConfiguration:
+          PlatformVersion: LATEST
+        Image: !Sub ${TrainingRepository.RepositoryUri}:${ContainerImageTag}
+        JobRoleArn: !GetAtt JobRole.Arn
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref BatchLogGroup
+            awslogs-region: !Ref AWS::Region
+            awslogs-stream-prefix: cpu
+        NetworkConfiguration:
+          AssignPublicIp: ENABLED
+        Privileged: false
+        ReadonlyRootFilesystem: false
+        ResourceRequirements:
+          - Type: VCPU
+            Value: '2'
+          - Type: MEMORY
+            Value: '4096'
+        RuntimePlatform:
+          CpuArchitecture: X86_64
+          OperatingSystemFamily: LINUX
+      JobDefinitionName: !Sub ${ProjectName}-cpu
+      PlatformCapabilities:
+        - FARGATE
+      PropagateTags: true
+      RetryStrategy:
+        Attempts: 2
+        EvaluateOnExit:
+          - Action: RETRY
+            OnReason: AGENT
+          - Action: RETRY
+            OnStatusReason: Task failed to start*
+          - Action: EXIT
+            OnReason: '*'
+      Tags:
+        Project: !Ref ProjectName
+        Workload: cpu-screening
+      Timeout:
+        AttemptDurationSeconds: 7200
+      Type: container
+
+  CloudFormationExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ProjectName}-cloudformation-execution
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ManageProjectInfrastructure
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ManageProjectNetworkingAndLaunchTemplate
+                Effect: Allow
+                Action:
+                  - ec2:AssociateRouteTable
+                  - ec2:AttachInternetGateway
+                  - ec2:AuthorizeSecurityGroupEgress
+                  - ec2:CreateInternetGateway
+                  - ec2:CreateLaunchTemplate
+                  - ec2:CreateLaunchTemplateVersion
+                  - ec2:CreateRoute
+                  - ec2:CreateRouteTable
+                  - ec2:CreateSecurityGroup
+                  - ec2:CreateSubnet
+                  - ec2:CreateTags
+                  - ec2:CreateVpc
+                  - ec2:CreateVpcEndpoint
+                  - ec2:DeleteInternetGateway
+                  - ec2:DeleteLaunchTemplate
+                  - ec2:DeleteLaunchTemplateVersions
+                  - ec2:DeleteRoute
+                  - ec2:DeleteRouteTable
+                  - ec2:DeleteSecurityGroup
+                  - ec2:DeleteSubnet
+                  - ec2:DeleteTags
+                  - ec2:DeleteVpc
+                  - ec2:DeleteVpcEndpoints
+                  - ec2:DetachInternetGateway
+                  - ec2:DisassociateRouteTable
+                  - ec2:ModifyLaunchTemplate
+                  - ec2:ModifySubnetAttribute
+                  - ec2:ModifyVpcAttribute
+                  - ec2:ModifyVpcEndpoint
+                  - ec2:ReplaceRoute
+                  - ec2:RevokeSecurityGroupEgress
+                Resource: '*'
+              - Sid: InspectEc2
+                Effect: Allow
+                Action: ec2:Describe*
+                Resource: '*'
+              - Sid: ManageProjectRoles
+                Effect: Allow
+                Action:
+                  - iam:AttachRolePolicy
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:DeleteRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:GetRole
+                  - iam:GetRolePolicy
+                  - iam:ListAttachedRolePolicies
+                  - iam:ListRolePolicies
+                  - iam:PutRolePolicy
+                  - iam:TagRole
+                  - iam:UntagRole
+                  - iam:UpdateAssumeRolePolicy
+                  - iam:UpdateRole
+                  - iam:UpdateRoleDescription
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ProjectName}-*
+              - Sid: ManageProjectInstanceProfile
+                Effect: Allow
+                Action:
+                  - iam:AddRoleToInstanceProfile
+                  - iam:CreateInstanceProfile
+                  - iam:DeleteInstanceProfile
+                  - iam:GetInstanceProfile
+                  - iam:RemoveRoleFromInstanceProfile
+                  - iam:TagInstanceProfile
+                  - iam:UntagInstanceProfile
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:instance-profile/${ProjectName}-*
+              - Sid: ManageProjectManagedPolicies
+                Effect: Allow
+                Action:
+                  - iam:CreatePolicy
+                  - iam:CreatePolicyVersion
+                  - iam:DeletePolicy
+                  - iam:DeletePolicyVersion
+                  - iam:GetPolicy
+                  - iam:GetPolicyVersion
+                  - iam:ListEntitiesForPolicy
+                  - iam:ListPolicyVersions
+                  - iam:TagPolicy
+                  - iam:UntagPolicy
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${ProjectName}-*
+              - Sid: PassOnlyProjectRolesToExpectedServices
+                Effect: Allow
+                Action: iam:PassRole
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ProjectName}-*
+                Condition:
+                  StringEquals:
+                    iam:PassedToService:
+                      - batch.amazonaws.com
+                      - budgets.amazonaws.com
+                      - ec2.amazonaws.com
+                      - ecs-tasks.amazonaws.com
+                      - spotfleet.amazonaws.com
+              - Sid: CreateGitHubProviderWhenRequested
+                Effect: Allow
+                Action: iam:CreateOpenIDConnectProvider
+                Resource: '*'
+              - Sid: ManageOnlyGitHubProvider
+                Effect: Allow
+                Action:
+                  - iam:DeleteOpenIDConnectProvider
+                  - iam:GetOpenIDConnectProvider
+                  - iam:TagOpenIDConnectProvider
+                  - iam:UntagOpenIDConnectProvider
+                  - iam:UpdateOpenIDConnectProviderThumbprint
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com
+              - Sid: ManageProjectBucket
+                Effect: Allow
+                Action:
+                  - s3:CreateBucket
+                  - s3:DeleteBucket
+                  - s3:DeleteBucketPolicy
+                  - s3:GetEncryptionConfiguration
+                  - s3:GetLifecycleConfiguration
+                  - s3:GetBucketOwnershipControls
+                  - s3:GetBucketPublicAccessBlock
+                  - s3:GetBucketPolicy
+                  - s3:GetBucketTagging
+                  - s3:GetBucketVersioning
+                  - s3:GetBucketAcl
+                  - s3:GetBucketLocation
+                  - s3:ListBucket
+                  - s3:PutEncryptionConfiguration
+                  - s3:PutLifecycleConfiguration
+                  - s3:PutBucketOwnershipControls
+                  - s3:PutBucketPublicAccessBlock
+                  - s3:PutBucketPolicy
+                  - s3:PutBucketTagging
+                  - s3:PutBucketVersioning
+                Resource: !Sub arn:${AWS::Partition}:s3:::${ProjectName}-${AWS::AccountId}-${AWS::Region}-artifacts
+              - Sid: ManageProjectRepository
+                Effect: Allow
+                Action:
+                  - ecr:CreateRepository
+                  - ecr:DeleteLifecyclePolicy
+                  - ecr:DeleteRepository
+                  - ecr:GetLifecyclePolicy
+                  - ecr:ListTagsForResource
+                  - ecr:PutImageScanningConfiguration
+                  - ecr:PutImageTagMutability
+                  - ecr:PutLifecyclePolicy
+                  - ecr:TagResource
+                  - ecr:UntagResource
+                Resource: !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ProjectName}/training
+              - Sid: InspectEcrRepositories
+                Effect: Allow
+                Action: ecr:DescribeRepositories
+                Resource: '*'
+              - Sid: ManageProjectLogGroup
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:DeleteLogGroup
+                  - logs:ListTagsForResource
+                  - logs:PutRetentionPolicy
+                  - logs:TagResource
+                  - logs:UntagResource
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/batch/${ProjectName}*
+              - Sid: InspectLogGroups
+                Effect: Allow
+                Action: logs:DescribeLogGroups
+                Resource: '*'
+              - Sid: ManageProjectBatchResources
+                Effect: Allow
+                Action:
+                  - batch:CreateComputeEnvironment
+                  - batch:CreateJobQueue
+                  - batch:DeleteComputeEnvironment
+                  - batch:DeleteJobQueue
+                  - batch:DeregisterJobDefinition
+                  - batch:RegisterJobDefinition
+                  - batch:TagResource
+                  - batch:UntagResource
+                  - batch:UpdateComputeEnvironment
+                  - batch:UpdateJobQueue
+                Resource: !Sub arn:${AWS::Partition}:batch:${AWS::Region}:${AWS::AccountId}:*
+              - Sid: InspectBatchResources
+                Effect: Allow
+                Action:
+                  - batch:DescribeComputeEnvironments
+                  - batch:DescribeJobDefinitions
+                  - batch:DescribeJobQueues
+                Resource: '*'
+              - Sid: InspectExistingProjectBudget
+                Effect: Allow
+                Action:
+                  - budgets:DescribeBudgetActionsForBudget
+                  - budgets:ViewBudget
+                Resource: !Sub arn:${AWS::Partition}:budgets::${AWS::AccountId}:budget/${ExistingBudgetName}
+              - Sid: ManageExistingBudgetAction
+                Effect: Allow
+                Action:
+                  - budgets:CreateBudgetAction
+                  - budgets:DeleteBudgetAction
+                  - budgets:DescribeBudgetAction
+                  - budgets:DescribeBudgetActionHistories
+                  - budgets:ListTagsForResource
+                  - budgets:TagResource
+                  - budgets:UntagResource
+                  - budgets:UpdateBudgetAction
+                Resource: !Sub arn:${AWS::Partition}:budgets::${AWS::AccountId}:budget/${ExistingBudgetName}/action/*
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: CreateGitHubOidcProvider
+    Properties:
+      ClientIdList:
+        - sts.amazonaws.com
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+      Url: https://token.actions.githubusercontent.com
+
+  BatchLauncherRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ProjectName}-launcher
+      Description: Same-account observer role; it can inspect and stop project jobs but cannot submit them.
+      MaxSessionDuration: 14400
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
+            Action: sts:AssumeRole
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  GitHubActionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ProjectName}-github-infra
+      Description: OIDC deployment role restricted to the repository infra branch.
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !If
+                - CreateGitHubOidcProvider
+                - !Ref GitHubOidcProvider
+                - !Ref GitHubOidcProviderArn
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:actor_id: '125384326'
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                token.actions.githubusercontent.com:ref: refs/heads/infra
+                token.actions.githubusercontent.com:repository: danielhacobian/temporal-straightening
+                token.actions.githubusercontent.com:repository_id: '1278580902'
+                token.actions.githubusercontent.com:repository_owner_id: '126291787'
+                token.actions.githubusercontent.com:sub: repo:danielhacobian/temporal-straightening:ref:refs/heads/infra
+                token.actions.githubusercontent.com:workflow: Deploy AWS infrastructure
+      Policies:
+        - PolicyName: DeployOnlyProjectStack
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ManageProjectStack
+                Effect: Allow
+                Action:
+                  - cloudformation:CancelUpdateStack
+                  - cloudformation:ContinueUpdateRollback
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:CreateStack
+                  - cloudformation:DeleteChangeSet
+                  - cloudformation:DeleteStack
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:DescribeStackResource
+                  - cloudformation:DescribeStackResources
+                  - cloudformation:DescribeStacks
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:GetTemplate
+                  - cloudformation:GetTemplateSummary
+                  - cloudformation:UpdateStack
+                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}/*
+              - Sid: InspectStacks
+                Effect: Allow
+                Action:
+                  - cloudformation:ListChangeSets
+                  - cloudformation:ListStacks
+                  - cloudformation:ValidateTemplate
+                Resource: '*'
+              - Sid: PassCloudFormationExecutionRole
+                Effect: Allow
+                Action: iam:PassRole
+                Resource: !GetAtt CloudFormationExecutionRole.Arn
+                Condition:
+                  StringEquals:
+                    iam:PassedToService: cloudformation.amazonaws.com
+              - Sid: AuthenticateToEcr
+                Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: '*'
+              - Sid: PushProjectImages
+                Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:CompleteLayerUpload
+                  - ecr:DescribeImages
+                  - ecr:InitiateLayerUpload
+                  - ecr:PutImage
+                  - ecr:UploadLayerPart
+                Resource: !GetAtt TrainingRepository.Arn
+              - Sid: ReadCanonicalInputMetadata
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                Resource:
+                  - !Sub ${ArtifactBucket.Arn}/datasets/point_maze_umaze.zip
+                  - !Sub ${ArtifactBucket.Arn}/goals/umaze_fixed_v1.pkl
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  GitHubSubmitRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ProjectName}-github-submit
+      Description: OIDC submit role restricted to the pinned reusable tag broker.
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !If
+                - CreateGitHubOidcProvider
+                - !Ref GitHubOidcProvider
+                - !Ref GitHubOidcProviderArn
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                token.actions.githubusercontent.com:job_workflow_ref: danielhacobian/temporal-straightening/.github/workflows/aws-paid-broker.yml@refs/heads/infra
+                token.actions.githubusercontent.com:repository: danielhacobian/temporal-straightening
+                token.actions.githubusercontent.com:repository_id: '1278580902'
+                token.actions.githubusercontent.com:repository_owner_id: '126291787'
+              StringLike:
+                token.actions.githubusercontent.com:ref:
+                  - refs/heads/infra
+                  - refs/tags/train-smoke-*
+                  - refs/tags/train-anchor-*
+                  - refs/tags/train-screen-*
+                  - refs/tags/train-finalists-*
+                  - refs/tags/train-scale-*
+                  - refs/tags/train-chunk-*
+                  - refs/tags/train-run-*
+                token.actions.githubusercontent.com:sub:
+                  - repo:danielhacobian/temporal-straightening:ref:refs/heads/infra
+                  - repo:danielhacobian/temporal-straightening:ref:refs/tags/train-smoke-*
+                  - repo:danielhacobian/temporal-straightening:ref:refs/tags/train-anchor-*
+                  - repo:danielhacobian/temporal-straightening:ref:refs/tags/train-screen-*
+                  - repo:danielhacobian/temporal-straightening:ref:refs/tags/train-finalists-*
+                  - repo:danielhacobian/temporal-straightening:ref:refs/tags/train-scale-*
+                  - repo:danielhacobian/temporal-straightening:ref:refs/tags/train-chunk-*
+                  - repo:danielhacobian/temporal-straightening:ref:refs/tags/train-run-*
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  BatchObserverManagedPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Observe and stop temporal-straightening jobs without permission to submit or write artifacts.
+      ManagedPolicyName: !Sub ${ProjectName}-batch-observer
+      Roles:
+        - !Ref BatchLauncherRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: StopProjectJobs
+            Effect: Allow
+            Action:
+              - batch:CancelJob
+              - batch:TerminateJob
+            Resource: !Sub arn:${AWS::Partition}:batch:${AWS::Region}:${AWS::AccountId}:job/*
+            Condition:
+              StringEquals:
+                aws:ResourceTag/Project: !Ref ProjectName
+          - Sid: InspectProjectBatchResources
+            Effect: Allow
+            Action:
+              - batch:DescribeComputeEnvironments
+              - batch:DescribeJobDefinitions
+              - batch:DescribeJobQueues
+              - batch:DescribeJobs
+              - batch:ListJobs
+            Resource: '*'
+          - Sid: ReadProjectStackOutputs
+            Effect: Allow
+            Action: cloudformation:DescribeStacks
+            Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}/*
+          - Sid: ReadCurrentGpuSpotPrice
+            Effect: Allow
+            Action: ec2:DescribeSpotPriceHistory
+            Resource: '*'
+          - Sid: InspectArtifactBucket
+            Effect: Allow
+            Action:
+              - s3:GetBucketLocation
+            Resource: !GetAtt ArtifactBucket.Arn
+          - Sid: ListJobArtifacts
+            Effect: Allow
+            Action:
+              - s3:ListBucket
+            Resource: !GetAtt ArtifactBucket.Arn
+            Condition:
+              StringLike:
+                s3:prefix:
+                  - jobs/*
+          - Sid: ReadJobArtifacts
+            Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:GetObjectVersion
+            Resource: !Sub ${ArtifactBucket.Arn}/jobs/*
+          - Sid: ReadProjectLogs
+            Effect: Allow
+            Action:
+              - logs:DescribeLogStreams
+              - logs:FilterLogEvents
+              - logs:GetLogEvents
+            Resource: !Sub ${BatchLogGroup.Arn}:*
+
+  GitHubBrokerManagedPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Submit one statically planned job through the pinned GitHub broker.
+      ManagedPolicyName: !Sub ${ProjectName}-github-broker
+      Roles:
+        - !Ref GitHubSubmitRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: SubmitToProjectQueues
+            Effect: Allow
+            Action: batch:SubmitJob
+            Resource:
+              - !Sub arn:${AWS::Partition}:batch:${AWS::Region}:${AWS::AccountId}:job/*
+              - !Ref GpuJobQueue
+              - !Ref GpuJobDefinition
+            Condition:
+              StringEquals:
+                aws:RequestTag/Project: !Ref ProjectName
+          - Sid: InspectProjectBatchResources
+            Effect: Allow
+            Action:
+              - batch:DescribeComputeEnvironments
+              - batch:DescribeJobDefinitions
+              - batch:DescribeJobQueues
+              - batch:DescribeJobs
+              - batch:ListJobs
+            Resource: '*'
+          - Sid: ReadProjectStackOutputs
+            Effect: Allow
+            Action: cloudformation:DescribeStacks
+            Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}/*
+          - Sid: ReadCurrentGpuSpotPriceAndNetBudget
+            Effect: Allow
+            Action:
+              - budgets:ViewBudget
+              - ec2:DescribeSpotPriceHistory
+            Resource: '*'
+          - Sid: LocateArtifactBucket
+            Effect: Allow
+            Action: s3:GetBucketLocation
+            Resource: !GetAtt ArtifactBucket.Arn
+          - Sid: ReadCanonicalInputs
+            Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:GetObjectVersion
+            Resource:
+              - !Sub ${ArtifactBucket.Arn}/datasets/point_maze_umaze.zip
+              - !Sub ${ArtifactBucket.Arn}/goals/umaze_fixed_v1.pkl
+          - Sid: ListBudgetLedger
+            Effect: Allow
+            Action: s3:ListBucket
+            Resource: !GetAtt ArtifactBucket.Arn
+            Condition:
+              StringLike:
+                s3:prefix:
+                  - budget-ledger
+                  - budget-ledger/*
+          - Sid: MaintainBudgetLedger
+            Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+            Resource: !Sub ${ArtifactBucket.Arn}/budget-ledger/*
+          - Sid: ListAdmissionLock
+            Effect: Allow
+            Action: s3:ListBucket
+            Resource: !GetAtt ArtifactBucket.Arn
+            Condition:
+              StringEquals:
+                s3:prefix: broker-locks/budget-admission.json
+          - Sid: MaintainAdmissionLock
+            Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+            Resource: !Sub ${ArtifactBucket.Arn}/broker-locks/budget-admission.json
+          - Sid: ClaimSubmissionLocks
+            Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+            Resource: !Sub ${ArtifactBucket.Arn}/submissions/*
+
+  BudgetStopPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: CreateExistingBudgetAction
+    Properties:
+      Description: >-
+        Explicit deny attached automatically when the existing net-spend budget
+        reaches 100 percent actual spend.
+      ManagedPolicyName: !Sub ${ProjectName}-budget-stop
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: BlockNewComputeAndDeploymentsAfterBudget
+            Effect: Deny
+            Action:
+              - batch:SubmitJob
+              - cloudformation:*
+              - ecr:PutImage
+            Resource: '*'
+
+  BudgetActionExecutionRole:
+    Type: AWS::IAM::Role
+    Condition: CreateExistingBudgetAction
+    Properties:
+      RoleName: !Sub ${ProjectName}-budget-action
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: budgets.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !Sub arn:${AWS::Partition}:budgets::${AWS::AccountId}:budget/${ExistingBudgetName}
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+      Policies:
+        - PolicyName: ApplyBudgetStopToLaunchRoles
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                Resource:
+                  - !GetAtt BatchLauncherRole.Arn
+                  - !GetAtt GitHubActionsRole.Arn
+                  - !GetAtt GitHubSubmitRole.Arn
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  ExistingBudgetGuardAction:
+    Type: AWS::Budgets::BudgetsAction
+    Condition: CreateExistingBudgetAction
+    Properties:
+      ActionThreshold:
+        Type: PERCENTAGE
+        Value: 100
+      ActionType: APPLY_IAM_POLICY
+      ApprovalModel: AUTOMATIC
+      BudgetName: !Ref ExistingBudgetName
+      Definition:
+        IamActionDefinition:
+          PolicyArn: !Ref BudgetStopPolicy
+          Roles:
+            - !Ref BatchLauncherRole
+            - !Ref GitHubActionsRole
+            - !Ref GitHubSubmitRole
+      ExecutionRoleArn: !GetAtt BudgetActionExecutionRole.Arn
+      NotificationType: ACTUAL
+      Subscribers:
+        - Address: !Ref BudgetAlertEmail
+          Type: EMAIL
+
+Outputs:
+  ArtifactBucketName:
+    Description: Versioned S3 bucket for datasets, checkpoints, and job artifacts.
+    Value: !Ref ArtifactBucket
+  BatchLogGroupName:
+    Value: !Ref BatchLogGroup
+  BudgetGuardActionId:
+    Condition: CreateExistingBudgetAction
+    Description: Action attached to the existing budget; no budget is created here.
+    Value: !GetAtt ExistingBudgetGuardAction.ActionId
+  CloudFormationExecutionRoleArn:
+    Description: Pass this role to CloudFormation after the bootstrap deployment.
+    Value: !GetAtt CloudFormationExecutionRole.Arn
+  CpuJobDefinitionArn:
+    Condition: CreateCpuFargate
+    Value: !Ref CpuJobDefinition
+  CpuJobQueueArn:
+    Condition: CreateCpuFargate
+    Value: !Ref CpuJobQueue
+  GitHubActionsRoleArn:
+    Description: OIDC role restricted to danielhacobian/temporal-straightening infra.
+    Value: !GetAtt GitHubActionsRole.Arn
+  GitHubSubmitRoleArn:
+    Description: Narrow OIDC role callable only from the pinned reusable tag broker.
+    Value: !GetAtt GitHubSubmitRole.Arn
+  GpuComputeEnvironmentArn:
+    Value: !Ref GpuComputeEnvironment
+  GpuJobDefinitionArn:
+    Value: !Ref GpuJobDefinition
+  GpuJobQueueArn:
+    Value: !Ref GpuJobQueue
+  BatchObserverManagedPolicyArn:
+    Description: Read and stop policy for teammates who already have an IAM identity.
+    Value: !Ref BatchObserverManagedPolicy
+  GitHubBrokerManagedPolicyArn:
+    Description: Submit policy attached only to the pinned GitHub broker role.
+    Value: !Ref GitHubBrokerManagedPolicy
+  LauncherRoleArn:
+    Description: Same-account observer role used by the status/stop helper.
+    Value: !GetAtt BatchLauncherRole.Arn
+  ProjectName:
+    Value: !Ref ProjectName
+  TrainingRepositoryUri:
+    Value: !GetAtt TrainingRepository.RepositoryUri
+  UmazeDatasetUri:
+    Description: Fixed write-protected key expected by the trusted submission broker.
+    Value: !Sub s3://${ArtifactBucket}/datasets/point_maze_umaze.zip
+  UmazeGoalSetUri:
+    Description: Fixed write-protected key expected by the trusted submission broker.
+    Value: !Sub s3://${ArtifactBucket}/goals/umaze_fixed_v1.pkl
+  VpcId:
+    Value: !Ref Vpc

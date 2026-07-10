@@ -28,6 +28,7 @@ model_epoch: latest
 seed: 100
 n_evals: 50
 goal_source: 'dset'
+goal_file_path: null  # required when goal_source=file; supplied by the infra runner
 goal_H: 25 
 n_plot_samples: 10
 decode_for_viz: true  # if false, skip world-model decoding/rollout visualization during eval
