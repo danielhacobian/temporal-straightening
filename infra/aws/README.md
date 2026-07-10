@@ -140,6 +140,12 @@ current `infra` tip. `train-smoke-*`, validated custom requests, and validated
 single-run chunks may submit; the four costly full built-in mappings emit plans.
 Pull-request and other branch/tag subjects cannot assume either role.
 
+The actor-ID condition authenticates who starts deployment; it does not prove
+who authored every file already at the branch tip. Because the next owner push
+deploys the full current checkout, all `infra` writers remain an intentional
+indirect infrastructure/image trust boundary. Review accumulated workflow,
+template, and container changes before the owner pushes again.
+
 `train-run-<slug>-<nonce>` selects only
 `infra/experiments/manifests/custom/<slug>.yaml`. The broker validates its
 closed schema before assuming AWS credentials and refuses unknown fields,

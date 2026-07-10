@@ -99,8 +99,10 @@ jobs:
             echo "Invalid ECR image tag: ${tag}" >&2
             exit 2
           fi
-          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
-          echo "build=${BUILD_IMAGE}" >> "${GITHUB_OUTPUT}"
+          {
+            echo "tag=${tag}"
+            echo "build=${BUILD_IMAGE}"
+          } >> "${GITHUB_OUTPUT}"
 
       - name: Validate the template against AWS
         run: aws cloudformation validate-template --template-body file://infra/aws/template.yaml >/dev/null
@@ -193,9 +195,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          aws cloudformation describe-stacks \
-            --stack-name "${STACK_NAME}" \
-            --query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName' || OutputKey=='GpuJobQueueArn' || OutputKey=='TrainingRepositoryUri'].[OutputKey,OutputValue]" \
-            --output table >> "${GITHUB_STEP_SUMMARY}"
-          echo "" >> "${GITHUB_STEP_SUMMARY}"
-          echo "This workflow deploys infrastructure and images only; it never submits a paid Batch job." >> "${GITHUB_STEP_SUMMARY}"
+          {
+            aws cloudformation describe-stacks \
+              --stack-name "${STACK_NAME}" \
+              --query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName' || OutputKey=='GpuJobQueueArn' || OutputKey=='TrainingRepositoryUri'].[OutputKey,OutputValue]" \
+              --output table
+            echo ""
+            echo "This workflow deploys infrastructure and images only; it never submits a paid Batch job."
+          } >> "${GITHUB_STEP_SUMMARY}"

@@ -253,13 +253,15 @@ jobs:
             echo "The stack returned a non-canonical UMaze goal-set URI." >&2
             exit 2
           }
-          echo "artifact_bucket=${bucket}" >> "${GITHUB_OUTPUT}"
-          echo "artifact_prefix=s3://${bucket}/jobs/${SOURCE_REVISION}" >> "${GITHUB_OUTPUT}"
-          echo "dataset_uri=${dataset_uri}" >> "${GITHUB_OUTPUT}"
-          echo "goal_set_uri=${goal_set_uri}" >> "${GITHUB_OUTPUT}"
-          echo "queue=${queue}" >> "${GITHUB_OUTPUT}"
-          echo "definition=${definition}" >> "${GITHUB_OUTPUT}"
-          echo "project_name=${project_name}" >> "${GITHUB_OUTPUT}"
+          {
+            echo "artifact_bucket=${bucket}"
+            echo "artifact_prefix=s3://${bucket}/jobs/${SOURCE_REVISION}"
+            echo "dataset_uri=${dataset_uri}"
+            echo "goal_set_uri=${goal_set_uri}"
+            echo "queue=${queue}"
+            echo "definition=${definition}"
+            echo "project_name=${project_name}"
+          } >> "${GITHUB_OUTPUT}"
 
       - name: Pin canonical input metadata
         id: inputs
@@ -270,13 +272,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          exec 3>> "${GITHUB_OUTPUT}"
           aws s3api head-object \
             --bucket "${ARTIFACT_BUCKET}" \
             --key datasets/point_maze_umaze.zip > dataset-head.json
           aws s3api head-object \
             --bucket "${ARTIFACT_BUCKET}" \
             --key goals/umaze_fixed_v1.pkl > goals-head.json
-          python - <<'PY' >> "${GITHUB_OUTPUT}"
+          python - <<'PY' >&3
           import json
           import re
 
@@ -296,8 +299,8 @@ jobs:
               print(f"{output_name}={digest}")
               print(f"{output_name.removesuffix('_sha256')}_version_id={version_id}")
           PY
-          echo "dataset_uri=${DATASET_URI}" >> "${GITHUB_OUTPUT}"
-          echo "goal_set_uri=${GOAL_SET_URI}" >> "${GITHUB_OUTPUT}"
+          echo "dataset_uri=${DATASET_URI}" >&3
+          echo "goal_set_uri=${GOAL_SET_URI}" >&3
 
       - name: Verify the fixed one-GPU execution contract
         env:
@@ -511,6 +514,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          exec 3>> "${GITHUB_OUTPUT}"
           short_revision="${SOURCE_REVISION:0:12}"
           job_name="ts-${MANIFEST_NAME//_/-}-${short_revision}"
           marker_key="submissions/${MANIFEST_NAME}/${SOURCE_REVISION}.json"
@@ -570,10 +574,10 @@ jobs:
             marker_state="$(python -c 'import json; print(json.load(open("marker-validation.json"))["state"])')"
             marker_job_id="$(python -c 'import json; print(json.load(open("marker-validation.json"))["job_id"])')"
             if [[ -n "${marker_job_id}" ]]; then
-              echo "existing_job_id=${marker_job_id}" >> "${GITHUB_OUTPUT}"
-              echo "job_name=${job_name}" >> "${GITHUB_OUTPUT}"
-              echo "marker_key=${marker_key}" >> "${GITHUB_OUTPUT}"
-              echo "should_submit=false" >> "${GITHUB_OUTPUT}"
+              echo "existing_job_id=${marker_job_id}" >&3
+              echo "job_name=${job_name}" >&3
+              echo "marker_key=${marker_key}" >&3
+              echo "should_submit=false" >&3
               exit 0
             fi
           fi
@@ -648,10 +652,10 @@ jobs:
               --key "${marker_key}" \
               --body submission-marker.json \
               "${condition[@]}" > /dev/null
-            echo "existing_job_id=${existing_job_id}" >> "${GITHUB_OUTPUT}"
-            echo "job_name=${job_name}" >> "${GITHUB_OUTPUT}"
-            echo "marker_key=${marker_key}" >> "${GITHUB_OUTPUT}"
-            echo "should_submit=false" >> "${GITHUB_OUTPUT}"
+            echo "existing_job_id=${existing_job_id}" >&3
+            echo "job_name=${job_name}" >&3
+            echo "marker_key=${marker_key}" >&3
+            echo "should_submit=false" >&3
             exit 0
           fi
 
@@ -698,10 +702,10 @@ jobs:
               --body expired-submission-marker.json \
               --if-match "${marker_etag}" > /dev/null
           fi
-          echo "existing_job_id=" >> "${GITHUB_OUTPUT}"
-          echo "job_name=${job_name}" >> "${GITHUB_OUTPUT}"
-          echo "marker_key=${marker_key}" >> "${GITHUB_OUTPUT}"
-          echo "should_submit=true" >> "${GITHUB_OUTPUT}"
+          echo "existing_job_id=" >&3
+          echo "job_name=${job_name}" >&3
+          echo "marker_key=${marker_key}" >&3
+          echo "should_submit=true" >&3
 
       - name: Reserve aggregate budget with the S3 admission lease
         if: steps.resolve.outputs.mode == 'submit' && steps.idempotency.outputs.should_submit == 'true'

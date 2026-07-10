@@ -142,6 +142,13 @@ will keep enforcing the ledger. Treat changes to `.github/workflows/`,
 changes. Moving that boundary to a smaller maintainer set would require an
 immutable broker SHA or protected control-plane paths.
 
+The owner-only deploy trigger also assumes that the entire current `infra` tip
+has been reviewed: an owner push executes workflow, template, and container
+changes already landed by any writer. In this trusted-writer model, repository
+writers therefore have indirect image/infrastructure authority even though
+their own push cannot assume the deploy role. The owner should inspect pending
+control-plane changes before making the next push.
+
 ## Request a predefined run with a Git tag
 
 A contributor can queue work by creating a lowercase, auditable CI tag on a
