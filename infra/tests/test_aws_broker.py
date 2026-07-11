@@ -416,7 +416,7 @@ class TrustedBrokerWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(
             self.request_job["uses"],
-            f"{REPOSITORY}/.github/workflows/aws-paid-broker.yml@refs/heads/infra",
+            f"{REPOSITORY}/.github/workflows/aws-paid-broker.yml@infra",
         )
 
     def test_custom_requests_are_declarative_fixed_gpu_jobs_under_five_dollars(

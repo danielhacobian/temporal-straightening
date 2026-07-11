@@ -20,5 +20,6 @@ jobs:
     permissions:
       contents: read
       id-token: write # Passed to the pinned reusable broker for AWS OIDC.
-    # The AWS trust policy binds job_workflow_ref to this exact path at refs/heads/infra.
-    uses: danielhacobian/temporal-straightening/.github/workflows/aws-paid-broker.yml@refs/heads/infra # zizmor: ignore[unpinned-uses]
+    # GitHub's caller syntax takes the branch name; the resulting OIDC
+    # job_workflow_ref claim resolves it to this path at refs/heads/infra.
+    uses: danielhacobian/temporal-straightening/.github/workflows/aws-paid-broker.yml@infra # zizmor: ignore[unpinned-uses]

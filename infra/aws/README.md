@@ -133,11 +133,13 @@ retain the existing-budget action. A non-owner push skips the deployment job
 and cannot assume the deploy role. Automatic submission is restricted to
 `train-smoke-*`, `train-anchor-*`, `train-screen-*`, `train-finalists-*`, and
 `train-scale-*`, plus cost-bounded `train-chunk-*` and declarative
-`train-run-*` requests; the tiny trigger calls a reusable broker pinned to
-`.github/workflows/aws-paid-broker.yml@refs/heads/infra`. That broker maps the
-prefixes to fixed manifests and ceilings and requires the tag to target the
-current `infra` tip. `train-smoke-*`, validated custom requests, and validated
-single-run chunks may submit; the four costly full built-in mappings emit plans.
+`train-run-*` requests; the tiny trigger calls the reusable broker with
+GitHub's `@infra` branch syntax. GitHub resolves that to the
+`.github/workflows/aws-paid-broker.yml@refs/heads/infra` OIDC claim enforced by
+IAM. That broker maps the prefixes to fixed manifests and ceilings and requires
+the tag to target the current `infra` tip. `train-smoke-*`, validated custom
+requests, and validated single-run chunks may submit; the four costly full
+built-in mappings emit plans.
 Pull-request and other branch/tag subjects cannot assume either role.
 
 The actor-ID condition authenticates who starts deployment; it does not prove
