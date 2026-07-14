@@ -131,7 +131,11 @@ class PlanWorkspace:
         self.device = next(wm.parameters()).device
 
         # have different seeds for each planning instances
-        self.eval_seed = [cfg_dict["seed"] * n + 1 for n in range(cfg_dict["n_evals"])]
+        eval_start_index = cfg_dict.get("eval_start_index", 0)
+        self.eval_seed = [
+                        cfg_dict["seed"] * (n + eval_start_index) + 1
+                        for n in range(cfg_dict["n_evals"])
+        ]
         print("eval_seed: ", self.eval_seed)
         self.n_evals = cfg_dict["n_evals"]
         self.goal_source = cfg_dict["goal_source"]
