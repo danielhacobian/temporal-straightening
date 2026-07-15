@@ -83,21 +83,28 @@
     "mean": 94.0,
     "std": 1.63
   },
-  "checkpoint": "ts_umaze_baseline_FINAL/checkpoints/model_20.pth",
+  "checkpoint": "model_20.pth (epoch 20, straightening-ON run; not committed to repo due to size; identified by checkpoint_sha256)",
   "checkpoint_sha256": "dbe075b1e79b4d56b8eb59e56eabc88c36affbb33e84c28b873213ab0a03e743",
   "config": "conf/plan_gd.yaml",
   "planner": {
+    "config": "conf/plan_gd.yaml",
+    "class": "planning.mpc.MPCPlanner",
+    "sub_planner": "planning.gd.GDPlanner",
+    "mode": "open-loop (max_iter=1, n_taken_actions=25=horizon -> full plan executed once, no replanning)",
     "horizon": 25,
     "optimizer": "Adam",
     "learning_rate": 0.1,
     "opt_steps": 100,
+    "max_iter": 1,
+    "n_taken_actions": 25,
     "action_initialization": "zero",
+    "objective_mode": "last",
     "decode_for_viz": true
   },
   "chunk_logs": [
-    "ts_umaze_50eval_FINAL/plan_seed_100/logs.json",
-    "ts_umaze_50eval_FINAL/plan_seed_200/logs.json",
-    "ts_umaze_50eval_FINAL/plan_seed_300/logs.json"
+    "umaze_reproduction/plans/seed_100/logs.json",
+    "umaze_reproduction/plans/seed_200/logs.json",
+    "umaze_reproduction/plans/seed_300/logs.json"
   ],
   "aggregation": {
     "mean_metrics": "mean over the single 50-eval batch per seed (no chunking; A100-80GB fit)",
