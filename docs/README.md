@@ -47,6 +47,7 @@ Start with [The Big Idea](The%20Big%20Idea.md) if you're new. Every note links b
 
 - [The Reproduction Study](The%20Reproduction%20Study.md) — what was tested, what was found
 - [Results Analysis](Results%20Analysis.md) — an independent read of the raw result files, and why most "no difference" results are degenerate
+- [UMaze Baseline Reproduction](UMaze%20Baseline%20Reproduction.md) — the first faithful paper-protocol run: straightening reproduces (96% vs 44% control)
 - [Modal Runner](Modal%20Runner.md) — `modal_medium_runner.py`, the 1,200-line cloud orchestrator
 - [Evidence Packs](Evidence%20Packs.md) — the `modal_evidence/` folders, decoded
 
@@ -57,6 +58,7 @@ Start with [The Big Idea](The%20Big%20Idea.md) if you're new. Every note links b
 | `README.md` | [The Big Idea](The%20Big%20Idea.md) |
 | `report.md`, `research_note.tex/.pdf` | [The Reproduction Study](The%20Reproduction%20Study.md) |
 | `modal_evidence/**/*.json` (raw results) | [Results Analysis](Results%20Analysis.md) |
+| `umaze_reproduction/**` (UMaze baseline) | [UMaze Baseline Reproduction](UMaze%20Baseline%20Reproduction.md) |
 | `train.py` | [Training - train.py](Training%20-%20train.py.md) |
 | `plan.py` | [Planning - plan.py](Planning%20-%20plan.py.md) |
 | `preprocessor.py`, `utils.py`, `custom_resolvers.py` | [Supporting Code](Supporting%20Code.md) |
