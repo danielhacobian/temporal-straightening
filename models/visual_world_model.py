@@ -49,7 +49,7 @@ class VWorldModel(nn.Module):
         self.num_proprio_repeat = num_proprio_repeat
         self.proprio_dim = proprio_dim * num_proprio_repeat 
         self.action_dim = action_dim * num_action_repeat 
-        self.emb_dim = self.encoder.emb_dim + (self.action_dim + self.proprio_dim) * (concat_dim) # Not used
+        self.emb_dim = getattr(self.encoder, "module", self.encoder).emb_dim + (self.action_dim + self.proprio_dim) * (concat_dim) # Not used
         self.straighten = False
         self.straighten_scale = 0.0
         self.curvature_mode = None
@@ -123,10 +123,10 @@ class VWorldModel(nn.Module):
         assert concat_dim == 0 or concat_dim == 1, f"concat_dim {concat_dim} not supported."
         log.info("Model emb_dim: %s", self.emb_dim)
 
-        if "dino" in self.encoder.name:
+        if "dino" in getattr(self.encoder, "module", self.encoder).name:
             decoder_scale = 16  # from vqvae
             num_side_patches = image_size // decoder_scale
-            self.encoder_image_size = num_side_patches * encoder.patch_size
+            self.encoder_image_size = num_side_patches * getattr(encoder, "module", encoder).patch_size
             self.encoder_transform = transforms.Compose(
                 [transforms.Resize(self.encoder_image_size)]
             )
@@ -301,11 +301,11 @@ class VWorldModel(nn.Module):
             raise ValueError(f"Features must have at least 3 frames for curvature calculation, got {features.shape[1]}")
 
         if mode == "aggcos":
-            if not hasattr(self.encoder, "agg"):
+            if not hasattr(getattr(self.encoder, "module", self.encoder), "agg"):
                 raise ValueError("curvature mode 'aggcos' requires encoder.agg().")
             b, t, p, d = features.shape
             tokens = features.reshape(b * t, p, d)
-            z = self.encoder.agg(tokens).reshape(b, t, -1)
+            z = getattr(self.encoder, "module", self.encoder).agg(tokens).reshape(b, t, -1)
             v1 = z[:, 1:-1] - z[:, :-2]
             v2 = z[:, 2:] - z[:, 1:-1]
         elif mode == "cos":
@@ -321,11 +321,11 @@ class VWorldModel(nn.Module):
             raise ValueError(f"Features must have at least 3 frames for speed calculation, got {features.shape[1]}")
 
         if mode == "aggcos":
-            if not hasattr(self.encoder, "agg"):
+            if not hasattr(getattr(self.encoder, "module", self.encoder), "agg"):
                 raise ValueError("speed mode 'aggcos' requires encoder.agg().")
             b, t, p, d = features.shape
             tokens = features.reshape(b * t, p, d)
-            z = self.encoder.agg(tokens).reshape(b, t, -1)
+            z = getattr(self.encoder, "module", self.encoder).agg(tokens).reshape(b, t, -1)
             velocity = z[:, 1:] - z[:, :-1]
         elif mode == "cos":
             velocity = features[:, 1:] - features[:, :-1]
