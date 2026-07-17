@@ -7,12 +7,19 @@ checkpoint_root="$PWD/baseline_artifacts/checkpoints/wall_speed_ablations"
 output_root="$PWD/baseline_artifacts/plans/wall_trajectory_penalty_ablations"
 status_log="$PWD/logs/wall_trajectory_planning.status"
 gpu_count="${PLANNING_GPUS:-7}"
+lock_file="$PWD/logs/wall_trajectory_planning.lock"
 
 conditions=(r3_beta1 r1_speed_only r2_full_matched)
 seeds=(100 200 300)
 offsets=(0 10 20 30 40)
 
 mkdir -p "$output_root" "$PWD/logs"
+
+exec 9>"$lock_file"
+if ! flock -n 9; then
+  echo "$(date -Is) WATCHER_ALREADY_RUNNING" >> "$status_log"
+  exit 0
+fi
 
 for condition in "${conditions[@]}"; do
   checkpoint="$checkpoint_root/$condition/checkpoints/model_20.pth"
