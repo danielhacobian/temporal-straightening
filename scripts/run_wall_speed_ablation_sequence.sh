@@ -24,8 +24,28 @@ run_one() {
   local token="$1"
   local name="$2"
   local out="$base/$name"
+  local target_epochs="${TARGET_EPOCHS:-20}"
+  local completed_epoch=0
+  local remaining_epochs checkpoint_file checkpoint_name checkpoint_epoch
 
-  echo "$(date -Is) START $name $token" >> "$status_log"
+  shopt -s nullglob
+  for checkpoint_file in "$out"/checkpoints/model_[0-9]*.pth; do
+    checkpoint_name="${checkpoint_file##*/}"
+    checkpoint_epoch="${checkpoint_name#model_}"
+    checkpoint_epoch="${checkpoint_epoch%.pth}"
+    if [[ "$checkpoint_epoch" =~ ^[0-9]+$ ]] && (( checkpoint_epoch > completed_epoch )); then
+      completed_epoch="$checkpoint_epoch"
+    fi
+  done
+  shopt -u nullglob
+
+  if (( completed_epoch >= target_epochs )); then
+    echo "$(date -Is) SKIP $name completed_epoch=$completed_epoch target_epochs=$target_epochs" >> "$status_log"
+    return
+  fi
+  remaining_epochs=$((target_epochs - completed_epoch))
+
+  echo "$(date -Is) START $name $token completed_epoch=$completed_epoch remaining_epochs=$remaining_epochs" >> "$status_log"
   env \
     CPATH="$HOME/.conda/envs/ts/include" \
     LIBRARY_PATH="$HOME/.conda/envs/ts/lib" \
@@ -41,6 +61,7 @@ run_one() {
       train.py \
       --config-name wall_ablation_base \
       "training.straighten=$token" \
+      "training.epochs=$remaining_epochs" \
       "ckpt_base_path=$out" \
       "hydra.run.dir=$out" \
       > "$PWD/logs/wall_speed_$name.log" 2>&1
