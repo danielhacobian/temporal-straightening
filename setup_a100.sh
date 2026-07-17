@@ -26,11 +26,34 @@
 # Override before sourcing:
 #   ZIP=~/point_maze.zip DATA_ROOT=~/data BACKUP_DIR=s3://your-bucket/ts source setup_a100.sh
 
-set -e
+# NO `set -e` HERE, deliberately. This script is SOURCED, so `set -e` applies to
+# your interactive shell: any failing command kills the whole terminal before you
+# can read the error. setup_runpod.sh has that bug; do not copy it back in.
+# Instead each step reports its own failure via _step below and we keep going,
+# so you always get to see what broke.
 ENV=ts310
 ZIP="${ZIP:-$HOME/point_maze.zip}"
 DATA_ROOT="${DATA_ROOT:-$HOME/data}"
 REPO="$(pwd)"
+SETUP_LOG="${SETUP_LOG:-/tmp/setup_a100.log}"
+: > "$SETUP_LOG"
+_FAILED=0
+
+# Run a step, tee its output to $SETUP_LOG, and report loudly on failure
+# WITHOUT exiting the shell.
+_step() {
+  local name="$1"; shift
+  echo ">> $name"
+  if "$@" >>"$SETUP_LOG" 2>&1; then
+    return 0
+  else
+    echo "!! STEP FAILED: $name"
+    echo "!! last 20 lines (full log: $SETUP_LOG):"
+    tail -20 "$SETUP_LOG" | sed 's/^/!!   /'
+    _FAILED=1
+    return 1
+  fi
+}
 
 # --- ephemeral-disk warning -------------------------------------------------
 if df -h "$HOME" | tail -1 | grep -q ephemeral; then
@@ -67,13 +90,17 @@ conda activate "$ENV"
 # --- GL / OSMesa WITHOUT root -----------------------------------------------
 # setup_aws.sh apt-gets these. There is no sudo here, so pull them from
 # conda-forge into the env instead. mujoco_py compiles against these headers.
-echo ">> GL/OSMesa via conda-forge (no root needed, ~2-5 min)"
-conda install -y -q -c conda-forge mesalib glew glfw patchelf >/dev/null
+# mesalib/glew/glfw: OSMesa backend for mujoco_py. xorg-libx11/xorg-libxext are
+# only needed if mujoco_py ever tries the EGL backend -- MUJOCO_PY_FORCE_CPU=1
+# below stops that -- but they are tiny, so include them and skip the whack-a-mole.
+_step "GL/OSMesa via conda-forge (no root needed, ~2-5 min)" \
+  conda install -y -q -c conda-forge mesalib glew glfw patchelf xorg-libx11 xorg-libxext
 
 # --- python deps ------------------------------------------------------------
-echo ">> installing python deps (slow step, ~10-20 min)"
-pip install -q -r "$REPO/reqs310.txt"
-pip install -q "setuptools<81"          # wandb needs pkg_resources
+_step "installing python deps (slow step, ~10-20 min)" \
+  pip install -r "$REPO/reqs310.txt"
+_step "pinning setuptools<81 (wandb needs pkg_resources)" \
+  pip install "setuptools<81"
 
 # --- MuJoCo 210 -------------------------------------------------------------
 if [ ! -d "$HOME/.mujoco/mujoco210" ]; then
@@ -113,6 +140,13 @@ fi
 echo ">> CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES  (of 8; override if you want another)"
 nvidia-smi --query-gpu=index,name,memory.used,memory.total --format=csv,noheader
 
-set +e
-echo ">> ready. env=$ENV  DATASET_DIR=$DATASET_DIR  BACKUP_DIR=${BACKUP_DIR:-<unset>}"
-echo ">> next: bash run_cls_a100.sh prep"
+if [ "$_FAILED" != "0" ]; then
+  echo ""
+  echo "!! ==================================================================="
+  echo "!! ONE OR MORE STEPS FAILED. Do NOT run prep/train yet."
+  echo "!! Full log:  less $SETUP_LOG"
+  echo "!! ==================================================================="
+else
+  echo ">> ready. env=$ENV  DATASET_DIR=$DATASET_DIR  BACKUP_DIR=${BACKUP_DIR:-<unset>}"
+  echo ">> next: bash run_cls_a100.sh prep"
+fi
