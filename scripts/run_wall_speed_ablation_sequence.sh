@@ -37,7 +37,7 @@ run_one() {
     CUDA_VISIBLE_DEVICES=4,5,6,7 \
     conda run -n ts accelerate launch \
       --num_processes 4 \
-      --main_process_port 0 \
+      --main_process_port "${MAIN_PROCESS_PORT:-29610}" \
       train.py \
       --config-name wall_ablation_base \
       "training.straighten=$token" \
