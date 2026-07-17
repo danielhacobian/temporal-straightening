@@ -131,6 +131,23 @@ export WANDB_MODE=disabled
 export MUJOCO_GL=osmesa          # EGL needs a GPU context and fails headless
 export MUJOCO_PY_FORCE_CPU=1
 
+# --- make `dinov2` importable so CHECKPOINT RESUME works ---------------------
+# The checkpoint pickles the encoder object, which holds the torch.hub-loaded
+# DINOv2 model, so torch.load needs `import dinov2` to succeed. That package
+# only lives in torch.hub's cache dir, which is on sys.path *only* after
+# torch.hub.load() runs -- but train.py:264-267 calls load_ckpt BEFORE building
+# the encoder. Without this, resuming from model_latest.pth dies with
+#   ModuleNotFoundError: No module named 'dinov2'
+# which silently breaks the "just re-run train, it resumes" recovery path.
+HUB_DINO="$(ls -d "$HOME/.cache/torch/hub/facebookresearch_dinov2"* 2>/dev/null | head -1)"
+if [ -n "$HUB_DINO" ]; then
+  export PYTHONPATH="$HUB_DINO:${PYTHONPATH:-}"
+  echo ">> PYTHONPATH += $HUB_DINO  (so checkpoint resume can unpickle dinov2)"
+else
+  echo "!! torch.hub dinov2 cache not found yet -- it appears on the first train run."
+  echo "!! Re-source this script after that, or resume will fail on ModuleNotFoundError."
+fi
+
 # --- pick the idlest GPU (shared box: don't land on a teammate's job) --------
 if [ -z "${CUDA_VISIBLE_DEVICES:-}" ]; then
   IDLEST=$(nvidia-smi --query-gpu=index,memory.used --format=csv,noheader,nounits \
