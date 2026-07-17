@@ -7,13 +7,13 @@
 
 \title{Reproducing Temporal Straightening on Medium and Wall}
 \author{Codex experiment report}
-\date{July 3, 2026}
+\date{July 7, 2026}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-We reproduced temporal straightening with gradient-descent planning on the Medium environment, ran DINO baselines, tested speed-constancy ablations, and completed Wall runs for authors-style straightening and DINO patch features. The Medium reproduction shows equal planner success for authors-style DINO patch cosine straightening and DINO patch without straightening, while DINO CLS performs better. A frozen-DINO speed ablation supports the critique that cosine straightening ignores speed variation, but cannot change measured frozen latent geometry. A trainable DINO-channel adapter ablation addresses that caveat: cosine improves directional straightness while worsening latent speed variation, speed-only improves speed regularity without improving straightness, and cosine plus speed gives the best curvature and mean state distance but not the best planner success. Wall authors and DINO patch runs both reach 0.02 planner success.
+We reproduced temporal straightening with gradient-descent planning on the Medium environment, ran DINO baselines, tested speed-constancy ablations, and completed Wall runs for authors-style straightening and DINO patch features. The Medium reproduction shows equal planner success for authors-style DINO patch cosine straightening and DINO patch without straightening, while DINO CLS performs better. A frozen-DINO speed ablation supports the critique that cosine straightening ignores speed variation, but cannot change measured frozen latent geometry. A trainable DINO-channel adapter ablation addresses that caveat: cosine improves directional straightness while worsening latent speed variation, speed-only improves speed regularity without improving straightness, and cosine plus speed gives the best curvature and mean state distance but not the best planner success. A July 7 follow-up tests Erin's scale-invariant speed-ratio term and the normalized-acceleration decomposition. Ratio-speed alone improves the speed-constancy diagnostic without directly shrinking latent steps, while normalized acceleration improves curvature and reaches 0.16 planner success, the best DINO-channel adapter success in these one-seed Medium runs. Wall authors and DINO patch runs both reach 0.02 planner success.
 \end{abstract}
 
 \section{Motivation}
@@ -29,6 +29,20 @@ This aligns consecutive velocity vectors but removes velocity magnitude. Therefo
 Medium experiments used 50 generated random-policy episodes of length 100, 20 training epochs, and gradient-descent planning with 50 evaluations and goal horizon 25. The baseline compared authors-style DINO patch cosine straightening, DINO patch without straightening, and DINO CLS without straightening.
 
 The speed ablation added penalties on variation in consecutive latent step magnitudes. The first ablation used frozen DINO patch and CLS features. Because frozen encoders cannot change the measured latent geometry, we then ran a DINO-channel adapter ablation in which the DINO backbone remains frozen but the measured projection and aggregation path is trainable.
+
+The July 7 follow-up replaces direct magnitude smoothness with Erin's scale-invariant ratio penalty,
+\[
+  r_t = \frac{\|v_{t+1}\|}{\|v_t\|}, \qquad
+  L_{\mathrm{ratio}} =
+  \left(\sqrt{r_t} - \frac{1}{\sqrt{r_t}}\right)^2.
+\]
+It also tests the normalized-acceleration identity
+\[
+  \frac{\|a_t\|^2}{\|v_t\|\|v_{t+1}\|}
+  =
+  L_{\mathrm{ratio}} + 2(1 - \cos \theta_t).
+\]
+Both runs use the trainable \texttt{dino\_channel} adapter path. Latent diagnostics use a 20-rollout cap because the initial 50-rollout ratio diagnostic behaved like the earlier stalled adapter speed diagnostic.
 
 Wall used the same episode count, episode length, epoch count, and planner settings. The Wall run required code compatibility fixes for missing legacy imports and generated image shape normalization.
 
@@ -73,6 +87,38 @@ Cosine+speed & 0.10 & 3.1176 & 0.9806 & 0.4914 & 0.4911 \\
 
 The adapter ablation directly exhibits the cosine-loss caveat. Cosine straightening reduces curvature and path ratio, but increases speed variation. Speed-only reduces speed variation, but worsens curvature and path ratio. Cosine plus speed gives the best curvature, best path ratio, and best mean state distance, yet it does not improve planner success.
 
+\section{Erin Ratio-Speed Ablation}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lrrrrrr}
+\toprule
+Variant & Train & Val & Success & State dist & Curvature & Ratio penalty \\
+\midrule
+Ratio-speed & 0.1426 & 0.1408 & 0.12 & 4.2253 & 1.3435 & 0.3153 \\
+Normalized acceleration & 0.3688 & 0.3339 & 0.16 & 3.5665 & 1.0340 & 0.5058 \\
+\bottomrule
+\end{tabular}
+\caption{July 7 DINO-channel ratio ablations. Both use epoch 20 planning with 50 evaluations. Latent metrics use 20 rollouts.}
+\end{table}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lrrrrr}
+\toprule
+Variant & Path/end & Norm. accel & Speed CV & Speed jump & p95/p05 \\
+\midrule
+Ratio-speed & 17.5652 & 3.0024 & 0.3793 & 0.3756 & 7.7778 \\
+Normalized acceleration & 13.8773 & 2.5737 & 0.4510 & 0.4598 & 8.7023 \\
+\bottomrule
+\end{tabular}
+\caption{Additional latent diagnostics for the ratio ablations. Lower is better for every metric in this table.}
+\end{table}
+
+Ratio-speed is not the same as the paper author's smoothness ablation. It does not penalize latent step magnitude directly and it kept much larger latent steps than the earlier magnitude speed-only adapter run. However, ratio-speed alone did not improve directional straightness: curvature 1.3435 is close to the old speed-only adapter value 1.3431 and worse than no-straightening's 1.3060. Normalized acceleration combines speed ratio and curvature, lowering curvature to 1.0340 and full normalized acceleration to 2.5737. It also reached 0.16 planner success, the best adapter-family success rate observed here. It did not beat the DINO CLS baseline at 0.22, and its pure speed metrics were worse than ratio-speed alone.
+
 \section{Wall Results}
 
 \begin{table}[h]
@@ -96,7 +142,7 @@ Patch speed and patch cosine-plus-speed Medium contact sheets are byte-identical
 
 \section{Discussion}
 
-The experiments support the critique that cosine temporal straightening alone does not enforce the constant-speed condition used in the theoretical story. The adapter ablation is the most informative result: it separates directional straightness from speed regularity and shows that improving one does not automatically improve the other. However, planner success does not monotonically follow the straightness or speed metrics in these small runs. More seeds and larger datasets would be needed before claiming the speed penalty is a robust improvement.
+The experiments support the critique that cosine temporal straightening alone does not enforce the constant-speed condition used in the theoretical story. The adapter ablation separates directional straightness from speed regularity and shows that improving one does not automatically improve the other. Erin's ratio term addresses the author's smoothness concern more directly because it is scale-invariant and does not directly shrink velocities. The normalized-acceleration variant is the most promising new result, but planner success does not monotonically follow the straightness or speed metrics in these small runs. More seeds and larger datasets would be needed before claiming the speed-ratio penalty is a robust improvement.
 
 \section{Artifacts}
 
@@ -107,6 +153,8 @@ Primary evidence files are under \path{modal_evidence/}. Key files include:
   \item \path{medium-ablations-20260702-01/combined_medium_results.json}
   \item \path{medium-ablations-20260702-01/image_evidence_summary.json}
   \item \path{medium-adapter-ablations-20260702-01/adapter_results.json}
+  \item \path{medium-ratio-ablations-20260707-01/ratio_results.json}
+  \item \path{medium-ratio-ablations-20260707-01/README.md}
   \item \path{wall-full-20260703-01/wall_results.json}
 \end{itemize}
 Large checkpoint archives and planner target pickles remain local or on the Modal volume and are not included in the PR.

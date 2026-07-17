@@ -1,0 +1,37 @@
+{
+  "run_id": "medium-ratio-speed-20260707-01",
+  "run_root": "/mnt/ts/runs/medium-ratio-speed-20260707-01",
+  "environment": "medium",
+  "train_env": "point_maze_medium",
+  "dataset": "/mnt/ts/datasets/medium_random_50x100/point_maze_medium",
+  "epochs": 20,
+  "n_episodes": 50,
+  "episode_length": 100,
+  "policy": "random",
+  "plan_n_evals": 50,
+  "plan_goal_h": 25,
+  "results": [
+    {
+      "variant": "dino_channel_ratio_speed",
+      "encoder": "dino_channel",
+      "straighten": "ratiospeed1e-1",
+      "train": {
+        "epoch": 20,
+        "train_loss": 0.1426,
+        "val_loss": 0.1408
+      },
+      "model_dir": "/mnt/ts/runs/medium-ratio-speed-20260707-01/checkpoints/dino_channel_ratio_speed/test/medium_ratiospeed1e-1_agg32_projchannel_dim8_hw14_sgTrue_lr1e-05",
+      "model_epoch": 20,
+      "plan_dir": "/mnt/ts/runs/medium-ratio-speed-20260707-01/plans/dino_channel_ratio_speed",
+      "plan": {
+        "final_eval/success_rate": 0.12,
+        "final_eval/mean_state_dist": 4.225268363952637,
+        "final_eval/mean_visual_dist": 0.31285940157312925,
+        "final_eval/mean_proprio_dist": 1.671739101409912,
+        "final_eval/mean_div_visual_emb": 157.023193359375,
+        "final_eval/mean_div_proprio_emb": 18.21895408630371
+      },
+      "elapsed_minutes": 30.09
+    }
+  ]
+}

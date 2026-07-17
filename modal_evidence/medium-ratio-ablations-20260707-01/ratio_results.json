@@ -1,0 +1,79 @@
+{
+  "status": "complete",
+  "environment": "medium",
+  "purpose": "Test Erin's scale-invariant ratio-speed term and coefficient-free normalized-acceleration form on the trainable DINO-channel adapter path.",
+  "methodology": {
+    "dataset": "50 random-policy Medium episodes, 100 frames per episode",
+    "epochs": 20,
+    "planner": {
+      "algorithm": "gradient descent",
+      "n_evals": 50,
+      "goal_horizon": 25
+    },
+    "latent_diagnostics": {
+      "max_rollouts": 20,
+      "note": "The initial 50-rollout ratio diagnostic was aborted after stalling; both new variants use the same 20-rollout cap."
+    }
+  },
+  "rows": [
+    {
+      "variant": "dino_channel_ratio_speed",
+      "run_id": "medium-ratio-speed-20260707-01",
+      "encoder": "dino_channel",
+      "straighten": "ratiospeed1e-1",
+      "train": {
+        "epoch": 20,
+        "train_loss": 0.1426,
+        "val_loss": 0.1408
+      },
+      "planner": {
+        "success_rate": 0.12,
+        "mean_state_dist": 4.225268363952637,
+        "mean_visual_dist": 0.31285940157312925,
+        "mean_proprio_dist": 1.671739101409912
+      },
+      "latent": {
+        "rollouts_analyzed": 20,
+        "cosine_curvature_mean": 1.3435153646432623,
+        "path_endpoint_ratio_mean": 17.56515439639286,
+        "latent_speed_cv_time_mean": 0.3792889683944534,
+        "speed_ratio_penalty_mean": 0.3153457072752435,
+        "normalized_acceleration_mean": 3.002376436295047,
+        "latent_speed_p95_p05_ratio": 7.777793358351344,
+        "relative_speed_jump_mean": 0.3755529108098725
+      }
+    },
+    {
+      "variant": "dino_channel_normacc",
+      "run_id": "medium-normacc-20260707-01",
+      "encoder": "dino_channel",
+      "straighten": "normacc1e-1",
+      "train": {
+        "epoch": 20,
+        "train_loss": 0.3688,
+        "val_loss": 0.3339
+      },
+      "planner": {
+        "success_rate": 0.16,
+        "mean_state_dist": 3.566474676132202,
+        "mean_visual_dist": 0.3221382068452381,
+        "mean_proprio_dist": 1.5042483806610107
+      },
+      "latent": {
+        "rollouts_analyzed": 20,
+        "cosine_curvature_mean": 1.0339596016716863,
+        "path_endpoint_ratio_mean": 13.877291181987646,
+        "latent_speed_cv_time_mean": 0.4509858225681344,
+        "speed_ratio_penalty_mean": 0.505768381060692,
+        "normalized_acceleration_mean": 2.5736875840616382,
+        "latent_speed_p95_p05_ratio": 8.702343051603986,
+        "relative_speed_jump_mean": 0.45978548049802237
+      }
+    }
+  ],
+  "interpretation": [
+    "Ratio-speed alone targets speed constancy without shrinking latent magnitudes, but did not improve directional straightness or planner success.",
+    "Normalized acceleration improved curvature and full normalized-acceleration diagnostics and reached 0.16 success, the best adapter-family success rate in these one-seed runs.",
+    "Normalized acceleration did not produce the best pure speed-constancy metrics and did not beat the DINO CLS baseline, so the evidence supports further study rather than a robust performance claim."
+  ]
+}
