@@ -96,17 +96,28 @@ usage() { echo "usage: bash run_cls_a100.sh {prep|smoke|train|plan|status|backup
 [ -f "$REPO/train.py" ] || { echo "!! run from the repo root (train.py not found)"; exit 1; }
 [ -d "$DATA" ]          || { echo "!! dataset dir missing: $DATA  (source setup_a100.sh)"; exit 1; }
 
-# RENDER BACKEND: EGL, not OSMesa. This contradicts plan_50_runpod.sh:36-38,
-# which recommends OSMesa -- here is why it had to change on this box:
-#   conda-forge mesalib 26.0.3 ships NO libOSMesa and NO GL/osmesa.h (verified:
-#   `find $CONDA_PREFIX -iname '*osmesa*'` returns only Python files), and there
-#   is no sudo to apt-get them, and /usr/include has neither. So the OSMesa
-#   backend physically cannot compile in this env. EGL can, once you have
-#   glew + xorg-libx11 + xorg-xproto (that last one supplies X11/X.h).
-# MUJOCO_PY_FORCE_CPU must be UNSET, not empty and not 0: mujoco_py's builder
-# tests `'MUJOCO_PY_FORCE_CPU' in os.environ`, i.e. presence, not value.
-unset MUJOCO_PY_FORCE_CPU
-export MUJOCO_GL="${MUJOCO_GL:-egl}"
+# RENDER BACKEND: OSMesa. plan_50_runpod.sh:36-38 is right and we proved it the
+# hard way -- do not "fix" this to EGL.
+#
+#   EGL COMPILES on this box (glew + xorg-libx11 + xorg-xproto satisfy it) but
+#   CRASHES AT RUNTIME: the render workers die with
+#       malloc_consolidate(): unaligned fastbin chunk detected
+#   followed by EOFError in venv.py:878 when the parent reads from the dead
+#   subprocess. Exactly the failure plan_50_runpod.sh documents for headless
+#   cloud GPUs. Compiling is not the same as working.
+#
+#   THE GOTCHA THAT COSTS AN HOUR: conda-forge `mesalib` must be pinned to
+#   23.3.*. Version 26.0.3 ships NO libOSMesa and NO GL/osmesa.h, so the OSMesa
+#   backend cannot even compile against it (`find $CONDA_PREFIX -iname '*osmesa*'`
+#   returns only Python files). 23.3 pulls libllvm17 (the llvmpipe software
+#   rasterizer OSMesa needs) and provides the header. setup_a100.sh pins it.
+#
+# MUJOCO_PY_FORCE_CPU selects LinuxCPUExtensionBuilder (OSMesa) over
+# LinuxGPUExtensionBuilder (EGL). Its VALUE is irrelevant -- mujoco_py tests
+# `'MUJOCO_PY_FORCE_CPU' in os.environ` -- so it must be set, and to unset it is
+# to choose EGL.
+export MUJOCO_PY_FORCE_CPU="${MUJOCO_PY_FORCE_CPU:-1}"
+export MUJOCO_GL="${MUJOCO_GL:-osmesa}"
 
 # Shared 8-GPU box. If setup_a100.sh didn't pin one, pick the idlest now.
 if [ -z "${CUDA_VISIBLE_DEVICES:-}" ]; then
