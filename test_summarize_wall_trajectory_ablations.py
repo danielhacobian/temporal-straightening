@@ -43,12 +43,17 @@ def test_render_report_includes_conditions_deltas_and_losses(tmp_path: Path) -> 
             "Epoch 20 Training loss: 0.1234 Validation loss: 0.2345\n"
         )
 
-    report = render_report(comparison_fixture(), checkpoint_root)
+    r0_train_log = tmp_path / "r0_train.log"
+    r0_train_log.write_text(
+        "Epoch 20 Training loss: 0.0531 Validation loss: 0.0508\n"
+    )
+    report = render_report(comparison_fixture(), checkpoint_root, r0_train_log)
     assert "R0 direction-only baseline" in report
     assert "R1 speed-only" in report
     assert "R2 full penalty" in report
     assert "R3 direction + speed" in report
     assert "+5.00 pp" in report
+    assert "0.0531 | 0.0508" in report
     assert "0.1234 | 0.2345" in report
     assert "150 evaluations per condition" in report
 

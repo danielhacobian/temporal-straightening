@@ -122,6 +122,7 @@ for condition in "${conditions[@]}"; do
 done
 
 baseline="$PWD/baseline_artifacts/plans/wall_dino_projector_full/on"
+r0_checkpoint="$PWD/baseline_artifacts/checkpoints/wall_projector_on_paper_v4/test/wall_aggmlpcos1e-1_agg32_projchannel_dim8_hw14_sgTrue_lr1e-05"
 "$HOME/.conda/envs/ts/bin/python" aggregate_condition_seeds.py \
   --condition "r0=$baseline" \
   --condition "r1=$output_root/r1_speed_only" \
@@ -134,6 +135,7 @@ baseline="$PWD/baseline_artifacts/plans/wall_dino_projector_full/on"
 "$HOME/.conda/envs/ts/bin/python" summarize_wall_trajectory_ablations.py \
   --comparison "$output_root/comparison.json" \
   --checkpoint-root "$checkpoint_root" \
+  --r0-train-log "$r0_checkpoint/train.log" \
   --output "$output_root/README.md" \
   > "$output_root/report.stdout"
 

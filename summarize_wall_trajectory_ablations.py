@@ -67,7 +67,11 @@ def pp(value: float) -> str:
     return f"{100.0 * value:+.2f} pp"
 
 
-def render_report(comparison: dict[str, Any], checkpoint_root: Path) -> str:
+def render_report(
+    comparison: dict[str, Any],
+    checkpoint_root: Path,
+    r0_train_log: Optional[Path] = None,
+) -> str:
     seeds = comparison["conditions"]["r0"]["seeds"]
     seed_headers = " | ".join(f"Seed {seed}" for seed in seeds)
     separator = " | ".join("---:" for _ in seeds)
@@ -131,9 +135,12 @@ def render_report(comparison: dict[str, Any], checkpoint_root: Path) -> str:
             "|---|---:|---:|",
         ]
     )
-    for name in ("r1", "r2", "r3"):
+    for name in CONDITIONS:
         metadata = CONDITIONS[name]
-        log_path = checkpoint_root / str(metadata["checkpoint_dir"]) / "train.log"
+        if name == "r0":
+            log_path = r0_train_log or Path("__missing_r0_train_log__")
+        else:
+            log_path = checkpoint_root / str(metadata["checkpoint_dir"]) / "train.log"
         losses = final_losses(log_path)
         if losses is None:
             train_text, validation_text = "unavailable", "unavailable"
@@ -169,10 +176,13 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--comparison", type=Path, required=True)
     parser.add_argument("--checkpoint-root", type=Path, required=True)
+    parser.add_argument("--r0-train-log", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
-    report = render_report(load_json(args.comparison), args.checkpoint_root)
+    report = render_report(
+        load_json(args.comparison), args.checkpoint_root, args.r0_train_log
+    )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(report, encoding="utf-8")
     print(report)
