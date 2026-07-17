@@ -23,6 +23,16 @@ if ! flock -n 9; then
   exit 0
 fi
 
+cleanup_children() {
+  local child_pid
+  while read -r child_pid; do
+    kill "$child_pid" 2>/dev/null || true
+  done < <(jobs -pr)
+}
+trap cleanup_children EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
 for condition in "${conditions[@]}"; do
   checkpoint="$checkpoint_root/$condition/checkpoints/model_20.pth"
   while [[ ! -s "$checkpoint" ]]; do
