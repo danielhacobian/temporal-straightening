@@ -35,8 +35,9 @@ trap 'exit 143' TERM
 
 for condition in "${conditions[@]}"; do
   checkpoint="$checkpoint_root/$condition/checkpoints/model_20.pth"
-  while [[ ! -s "$checkpoint" ]]; do
-    echo "$(date -Is) WAITING condition=$condition checkpoint=$checkpoint" >> "$status_log"
+  train_log="$checkpoint_root/$condition/train.log"
+  while [[ ! -s "$checkpoint" ]] || ! grep -qE 'Epoch[[:space:]]+20[[:space:]]+Training loss:' "$train_log" 2>/dev/null; do
+    echo "$(date -Is) WAITING condition=$condition checkpoint=$checkpoint epoch20_complete=false" >> "$status_log"
     sleep 60
   done
 done
