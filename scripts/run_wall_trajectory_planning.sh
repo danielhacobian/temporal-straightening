@@ -76,4 +76,30 @@ for ((slot = 0; slot < gpu_count; slot++)); do
 done
 wait
 
+for condition in "${conditions[@]}"; do
+  for seed in "${seeds[@]}"; do
+    seed_dir="$output_root/$condition/seed_$seed"
+    chunk_args=()
+    for offset in "${offsets[@]}"; do
+      chunk_args+=(--chunk "$offset:10:$seed_dir/chunk_$offset")
+    done
+    "$HOME/.conda/envs/ts/bin/python" aggregate_plan_chunks.py \
+      "${chunk_args[@]}" \
+      --seed "$seed" \
+      --expected-evals 50 \
+      --output "$seed_dir/aggregate.json" \
+      > "$seed_dir/aggregate.stdout"
+  done
+done
+
+baseline="$PWD/baseline_artifacts/plans/wall_dino_projector_full/on"
+"$HOME/.conda/envs/ts/bin/python" aggregate_condition_seeds.py \
+  --condition "r0=$baseline" \
+  --condition "r1=$output_root/r1_speed_only" \
+  --condition "r2=$output_root/r2_full_matched" \
+  --condition "r3=$output_root/r3_beta1" \
+  --baseline r0 \
+  --output "$output_root/comparison.json" \
+  > "$output_root/comparison.stdout"
+
 echo "$(date -Is) PLANNING_FINISHED" >> "$status_log"
