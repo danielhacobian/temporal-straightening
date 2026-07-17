@@ -35,7 +35,7 @@ run_one() {
     WANDB_MODE=disabled \
     HYDRA_FULL_ERROR=1 \
     CUDA_VISIBLE_DEVICES=4,5,6,7 \
-    conda run -n ts accelerate launch \
+    "$HOME/.conda/envs/ts/bin/accelerate" launch \
       --num_processes 4 \
       --main_process_port "${MAIN_PROCESS_PORT:-29610}" \
       train.py \
