@@ -87,14 +87,18 @@ if ! conda env list | grep -q "^$ENV "; then
 fi
 conda activate "$ENV"
 
-# --- GL / OSMesa WITHOUT root -----------------------------------------------
-# setup_aws.sh apt-gets these. There is no sudo here, so pull them from
+# --- GL headers for mujoco_py, WITHOUT root ---------------------------------
+# setup_aws.sh apt-gets these; there is no sudo here, so pull them from
 # conda-forge into the env instead. mujoco_py compiles against these headers.
-# mesalib/glew/glfw: OSMesa backend for mujoco_py. xorg-libx11/xorg-libxext are
-# only needed if mujoco_py ever tries the EGL backend -- MUJOCO_PY_FORCE_CPU=1
-# below stops that -- but they are tiny, so include them and skip the whack-a-mole.
-_step "GL/OSMesa via conda-forge (no root needed, ~2-5 min)" \
-  conda install -y -q -c conda-forge mesalib glew glfw patchelf xorg-libx11 xorg-libxext
+#
+# EGL backend deps. NOT OSMesa: conda-forge mesalib 26.0.3 ships neither
+# libOSMesa nor GL/osmesa.h, /usr/include has neither, and there is no sudo --
+# so the OSMesa backend cannot compile here regardless of what
+# plan_50_runpod.sh:36-38 recommends. EGL needs: glew (GL/glew.h),
+# xorg-libx11 (X11/Xlib.h), xorg-xproto (X11/X.h -- Xlib.h includes it, and
+# newer xorg-libx11 does NOT pull it in automatically).
+_step "GL/EGL deps via conda-forge (no root needed, ~2-5 min)" \
+  conda install -y -q -c conda-forge glew glfw patchelf xorg-libx11 xorg-libxext xorg-xproto
 
 # --- python deps ------------------------------------------------------------
 _step "installing python deps (slow step, ~10-20 min)" \
@@ -128,8 +132,11 @@ fi
 export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:${LD_LIBRARY_PATH:-}:$HOME/.mujoco/mujoco210/bin:/usr/lib/nvidia"
 export DATASET_DIR="$DATA_ROOT"
 export WANDB_MODE=disabled
-export MUJOCO_GL=osmesa          # EGL needs a GPU context and fails headless
-export MUJOCO_PY_FORCE_CPU=1
+# EGL, not OSMesa -- see the conda install note above for why OSMesa is not an
+# option in this env. MUJOCO_PY_FORCE_CPU must stay UNSET (mujoco_py tests for
+# the var's PRESENCE, not its value, so even =0 would force the CPU builder).
+unset MUJOCO_PY_FORCE_CPU
+export MUJOCO_GL=egl
 
 # --- make `dinov2` importable so CHECKPOINT RESUME works ---------------------
 # The checkpoint pickles the encoder object, which holds the torch.hub-loaded

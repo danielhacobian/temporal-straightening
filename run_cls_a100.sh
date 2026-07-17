@@ -96,8 +96,17 @@ usage() { echo "usage: bash run_cls_a100.sh {prep|smoke|train|plan|status|backup
 [ -f "$REPO/train.py" ] || { echo "!! run from the repo root (train.py not found)"; exit 1; }
 [ -d "$DATA" ]          || { echo "!! dataset dir missing: $DATA  (source setup_a100.sh)"; exit 1; }
 
-export MUJOCO_GL="${MUJOCO_GL:-osmesa}"
-export MUJOCO_PY_FORCE_CPU="${MUJOCO_PY_FORCE_CPU:-1}"
+# RENDER BACKEND: EGL, not OSMesa. This contradicts plan_50_runpod.sh:36-38,
+# which recommends OSMesa -- here is why it had to change on this box:
+#   conda-forge mesalib 26.0.3 ships NO libOSMesa and NO GL/osmesa.h (verified:
+#   `find $CONDA_PREFIX -iname '*osmesa*'` returns only Python files), and there
+#   is no sudo to apt-get them, and /usr/include has neither. So the OSMesa
+#   backend physically cannot compile in this env. EGL can, once you have
+#   glew + xorg-libx11 + xorg-xproto (that last one supplies X11/X.h).
+# MUJOCO_PY_FORCE_CPU must be UNSET, not empty and not 0: mujoco_py's builder
+# tests `'MUJOCO_PY_FORCE_CPU' in os.environ`, i.e. presence, not value.
+unset MUJOCO_PY_FORCE_CPU
+export MUJOCO_GL="${MUJOCO_GL:-egl}"
 
 # Shared 8-GPU box. If setup_a100.sh didn't pin one, pick the idlest now.
 if [ -z "${CUDA_VISIBLE_DEVICES:-}" ]; then
@@ -275,12 +284,20 @@ plan)
   # plan.py uses ckpt_base_path directly only if it is ABSOLUTE (plan.py:467)
   case "$RUN" in /*) ;; *) echo "!! run dir must be absolute"; exit 1 ;; esac
 
-  # NO apt-get here: no root on this box. setup_a100.sh conda-installs
-  # mesalib/glew/glfw/patchelf and puts $CONDA_PREFIX/lib first on
-  # LD_LIBRARY_PATH so mujoco_py compiles against them.
-  echo "[setup] clearing mujoco_py build cache so it links the conda GL libs..."
-  find "$(python -c 'import site;print(site.getsitepackages()[0])')/mujoco_py/generated" \
-       -maxdepth 1 -name '_pyxbld*' -exec rm -rf {} + 2>/dev/null || true
+  # NO apt-get here: no root on this box. setup_a100.sh conda-installs the GL
+  # deps and puts $CONDA_PREFIX/lib first on LD_LIBRARY_PATH.
+  #
+  # DO NOT clear _pyxbld* here. The original did, to force a rebuild against the
+  # conda GL libs -- but the EGL extension takes minutes to compile and deleting
+  # it means recompiling on every single plan run. Worse, a failed rebuild leaves
+  # you with nothing. mujoco_py rebuilds by itself when cymj.pyx changes, so the
+  # cache is safe to keep. If you ever DO need a clean rebuild:
+  #   find "$(python -c 'import site;print(site.getsitepackages()[0])')/mujoco_py/generated" \
+  #        -maxdepth 1 -name '_pyxbld*' -exec rm -rf {} +
+  echo "[setup] verifying mujoco_py imports (EGL backend, prebuilt)..."
+  python -c "import mujoco_py" 2>/dev/null \
+    && echo "[setup] mujoco_py OK" \
+    || { echo "!! mujoco_py import FAILED -- run: python -c 'import mujoco_py' to see why"; exit 1; }
 
   # plan.py reads env.dataset from the FROZEN hydra.yaml on disk; CLI overrides
   # do not reach it. Planning touches few frames, so use raw episode files.
