@@ -288,5 +288,87 @@ print(f"[written] {res}")
 PY
   ;;
 
+mpc)
+  # Closed-loop MPC (plan_gd_mpc.yaml: max_iter=20, n_taken_actions=5). Same
+  # checkpoint as open-loop; captures videos/images (decode_for_viz=$DECODE).
+  # Peak memory == open-loop (MPC just does more sequential GD solves), so the
+  # same CHUNK=10 applies. Separate output dir so it does NOT overwrite the
+  # open-loop artifacts. RUN OPEN-LOOP ('plan') FIRST -- this is the follow-up.
+  RUN="$(find_run_dir)"
+  [ -n "$RUN" ] || { echo "!! no row6 run dir under $CKPT_ROOT/test -- train first"; exit 1; }
+  CKPT="$RUN/checkpoints/model_${EPOCHS}.pth"
+  [ -f "$RUN/hydra.yaml" ] || { echo "!! MISSING $RUN/hydra.yaml"; exit 1; }
+  [ -f "$CKPT" ]           || { echo "!! MISSING $CKPT (training not finished?)"; exit 1; }
+  case "$RUN" in /*) ;; *) echo "!! run dir must be absolute (plan.py:467)"; exit 1 ;; esac
+  echo "BUNDLE=$RUN"
+
+  python -c "import mujoco_py" 2>/dev/null && echo "[setup] mujoco_py OK" \
+    || { echo "!! mujoco_py import FAILED -- run: python -c 'import mujoco_py'"; exit 1; }
+
+  # Idempotent: ensures data_path is set even if you run mpc without plan first.
+  python - "$RUN/hydra.yaml" "$DATA" <<'PY'
+import sys
+from omegaconf import OmegaConf
+p, data = sys.argv[1], sys.argv[2]
+cfg = OmegaConf.load(p)
+cfg.env.dataset.data_path = data
+cfg.env.dataset.use_frame_files = False
+cfg.env.dataset.use_preprocessed = False
+OmegaConf.save(cfg, p)
+print(f"[config] set data_path={data}, use_frame_files=False in {p}")
+PY
+
+  MPC_OUT="${MPC_OUT:-${OUT}_mpc}"
+  MPC_MEAN="80.67"; MPC_STD="6.18"   # Table 1 row 6, UMaze MPC
+  mkdir -p "$MPC_OUT"; cd "$REPO"
+  OFFSETS=$(python -c "print(' '.join(str(o) for o in range(0, $NEVALS, $CHUNK)))")
+  echo "===== CHUNKED MPC: $NEVALS evals/seed as $CHUNK-eval passes, offsets: $OFFSETS ====="
+  echo "(MPC replans 20x/eval -> slower than open-loop; decode_for_viz=$DECODE)"
+  for S in $SEEDS; do
+    for O in $OFFSETS; do
+      OO=$(printf "%02d" "$O")
+      echo "----- seed $S chunk $OO (MPC, n_evals=$CHUNK) -----"
+      python plan.py --config-name plan_gd_mpc.yaml \
+        ckpt_base_path="$RUN" \
+        model_epoch="$EPOCHS" \
+        n_evals="$CHUNK" \
+        +eval_start_index="$O" \
+        seed="$S" \
+        decode_for_viz="$DECODE" \
+        hydra.run.dir="$MPC_OUT/plan_seed_${S}/chunk_${OO}" \
+        2>&1 | tee "$MPC_OUT/plan_seed_${S}_chunk${OO}.log"
+    done
+  done
+
+  if [ "$DECODE" = "true" ]; then
+    echo ""; echo "[viz] MPC rendered artifacts:"
+    find "$MPC_OUT" -name '*.mp4' | wc -l | xargs echo "  mp4 files:"
+    find "$MPC_OUT" -name 'output_final.png' | wc -l | xargs echo "  contact sheets:"
+  fi
+
+  python - "$MPC_OUT" "$NEVALS" "$CHUNK" "$MPC_MEAN" "$MPC_STD" $SEEDS <<'PY'
+import sys, re, os, statistics as st
+out, nevals, chunk, pmean, pstd = sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), sys.argv[4], sys.argv[5]
+seeds = sys.argv[6:]; offsets = list(range(0, nevals, chunk)); rates = []
+for s in seeds:
+    cr = []
+    for o in offsets:
+        v = re.findall(r"Success rate:\s*([0-9.]+)", open(os.path.join(out, f"plan_seed_{s}_chunk{o:02d}.log")).read())
+        if not v: print(f"!! no rate seed {s} chunk {o}"); sys.exit(1)
+        cr.append(float(v[-1])*100.0)   # last print = final MPC iter over the chunk
+    rates.append(sum(cr)/len(cr)); print(f"seed {s}: {rates[-1]:.2f}%")
+m = sum(rates)/len(rates); sd = st.pstdev(rates) if len(rates)>1 else 0.0
+res = os.path.join(out, "RESULT_ROW6_MPC.txt")
+open(res,"w").write(
+    "===== UMAZE / DINOv2 (patch) 14x14x384 / NO STRAIGHTENING (MPC / closed-loop GD) =====\n"
+    f"n_evals={nevals}/seed, {len(offsets)}x{chunk} chunks, seeds={' '.join(seeds)}\n"
+    "per-seed success (%): " + ", ".join(f"{r:.2f}" for r in rates) + "\n"
+    f"OURS  = {m:.2f} +/- {sd:.2f} %  (n={len(rates)})\n"
+    f"PAPER = {pmean} +/- {pstd} %  (Table 1 row 6, UMaze MPC)\n"
+    "Compare against this row's OPEN-LOOP result (RESULT_ROW6.txt).\n")
+print("\n"+open(res).read()); print(f"[written] {res}")
+PY
+  ;;
+
 *) usage ;;
 esac
