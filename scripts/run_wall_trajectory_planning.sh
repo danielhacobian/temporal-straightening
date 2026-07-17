@@ -6,8 +6,10 @@ cd "${REPO_DIR:-$HOME/temporal-straightening}"
 checkpoint_root="$PWD/baseline_artifacts/checkpoints/wall_speed_ablations"
 output_root="$PWD/baseline_artifacts/plans/wall_trajectory_penalty_ablations"
 status_log="$PWD/logs/wall_trajectory_planning.status"
-gpu_count="${PLANNING_GPUS:-7}"
 lock_file="$PWD/logs/wall_trajectory_planning.lock"
+max_gpu_used_mib="${PLANNING_GPU_MAX_USED_MIB:-1024}"
+IFS=',' read -r -a gpu_ids <<< "${PLANNING_GPU_IDS:-1,2,3,4,5,6,7}"
+gpu_count="${#gpu_ids[@]}"
 
 conditions=(r3_beta1 r1_speed_only r2_full_matched)
 seeds=(100 200 300)
@@ -31,24 +33,44 @@ done
 
 echo "$(date -Is) ALL_CHECKPOINTS_READY" >> "$status_log"
 
+while true; do
+  mapfile -t gpu_memory_used < <(
+    nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits
+  )
+  busy_gpus=()
+  for gpu_id in "${gpu_ids[@]}"; do
+    if (( ${gpu_memory_used[$gpu_id]:-999999} > max_gpu_used_mib )); then
+      busy_gpus+=("$gpu_id:${gpu_memory_used[$gpu_id]:-unknown}MiB")
+    fi
+  done
+  if (( ${#busy_gpus[@]} == 0 )); then
+    break
+  fi
+  echo "$(date -Is) WAITING_FOR_GPUS busy=${busy_gpus[*]}" >> "$status_log"
+  sleep 60
+done
+
+echo "$(date -Is) PLANNING_GPUS_READY ids=${gpu_ids[*]}" >> "$status_log"
+
 run_worker() {
-  local slot="$1"
+  local worker_index="$1"
+  local gpu_id="$2"
   local index=0
   local condition seed offset out rc
 
   for condition in "${conditions[@]}"; do
     for seed in "${seeds[@]}"; do
       for offset in "${offsets[@]}"; do
-        if (( index % gpu_count == slot )); then
+        if (( index % gpu_count == worker_index )); then
           out="$output_root/$condition/seed_$seed/chunk_$offset"
           mkdir -p "$out"
           if [[ -s "$out/logs.json" ]] && grep -q 'final_eval/success_rate' "$out/logs.json"; then
             echo "$(date -Is) SKIP condition=$condition seed=$seed offset=$offset" >> "$status_log"
           else
-            echo "$(date -Is) START gpu=$slot condition=$condition seed=$seed offset=$offset" >> "$status_log"
+            echo "$(date -Is) START gpu=$gpu_id condition=$condition seed=$seed offset=$offset" >> "$status_log"
             set +e
             env \
-              CUDA_VISIBLE_DEVICES="$slot" \
+              CUDA_VISIBLE_DEVICES="$gpu_id" \
               CPATH="$HOME/.conda/envs/ts/include" \
               LIBRARY_PATH="$HOME/.conda/envs/ts/lib" \
               LD_LIBRARY_PATH="$HOME/.mujoco/mujoco210/bin:$HOME/.conda/envs/ts/lib:/usr/lib/nvidia" \
@@ -69,7 +91,7 @@ run_worker() {
                 > "$out/runner.log" 2>&1
             rc=$?
             set -e
-            echo "$(date -Is) END rc=$rc gpu=$slot condition=$condition seed=$seed offset=$offset" >> "$status_log"
+            echo "$(date -Is) END rc=$rc gpu=$gpu_id condition=$condition seed=$seed offset=$offset" >> "$status_log"
           fi
         fi
         index=$((index + 1))
@@ -78,8 +100,8 @@ run_worker() {
   done
 }
 
-for ((slot = 0; slot < gpu_count; slot++)); do
-  run_worker "$slot" &
+for ((worker_index = 0; worker_index < gpu_count; worker_index++)); do
+  run_worker "$worker_index" "${gpu_ids[$worker_index]}" &
 done
 wait
 
