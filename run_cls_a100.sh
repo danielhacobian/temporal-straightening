@@ -140,7 +140,11 @@ if cfg.dataset.use_frame_files is not True or cfg.dataset.use_preprocessed is no
 else:
     print(f"[config] fast loader already enabled")
 PY
-  if ! ls "$DATA"/obses/*_frame_* >/dev/null 2>&1; then
+  # NOTE: do NOT use `ls "$DATA"/obses/*_frame_*` here. After prep there are
+  # 200,000 matching files and the glob expansion exceeds ARG_MAX, so ls fails
+  # and the check reports "no frame files" exactly when they all exist.
+  # find -print -quit stops at the first hit and never expands the list.
+  if ! find "$DATA/obses" -maxdepth 1 -name '*_frame_*' -print -quit 2>/dev/null | grep -q .; then
     echo ""
     echo "!! WARNING: no per-frame files under $DATA/obses"
     echo "!!   bash run_cls_a100.sh prep"
@@ -166,7 +170,8 @@ prep)
   # Default mode = raw uint8 [H,W,C], ~30GB. Do NOT pass --preprocessed
   # (float32, ~117GB). You have 6.2T free so it would fit, but it buys nothing:
   # the loader's /255 + transform is cheap at 224x224.
-  if ls "$DATA"/obses/*_frame_* >/dev/null 2>&1; then
+  # find -print -quit, not a glob: 200k files would exceed ARG_MAX (see enable_fast_loader)
+  if find "$DATA/obses" -maxdepth 1 -name '*_frame_*' -print -quit 2>/dev/null | grep -q .; then
     echo "[prep] per-frame files already present (preprocess is resumable; re-running is a no-op scan)"
   else
     echo "===== PREPROCESS FRAMES: one-time, CPU only, ~40 min, ~30GB ====="
