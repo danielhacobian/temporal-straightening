@@ -131,4 +131,10 @@ baseline="$PWD/baseline_artifacts/plans/wall_dino_projector_full/on"
   --output "$output_root/comparison.json" \
   > "$output_root/comparison.stdout"
 
+"$HOME/.conda/envs/ts/bin/python" summarize_wall_trajectory_ablations.py \
+  --comparison "$output_root/comparison.json" \
+  --checkpoint-root "$checkpoint_root" \
+  --output "$output_root/README.md" \
+  > "$output_root/report.stdout"
+
 echo "$(date -Is) PLANNING_FINISHED" >> "$status_log"
