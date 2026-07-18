@@ -102,7 +102,14 @@ def main() -> None:
         metavar="NAME=PATH",
     )
     parser.add_argument("--baseline")
-    parser.add_argument("--treatment")
+    parser.add_argument(
+        "--treatment",
+        action="append",
+        help=(
+            "condition to compare with --baseline; may be repeated. If omitted "
+            "while --baseline is set, every non-baseline condition is compared."
+        ),
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
@@ -115,18 +122,36 @@ def main() -> None:
             name: aggregate_condition(path) for name, path in conditions.items()
         },
     }
-    if bool(args.baseline) != bool(args.treatment):
-        raise ValueError("--baseline and --treatment must be provided together")
+    treatments = args.treatment or []
+    if treatments and not args.baseline:
+        raise ValueError("--treatment requires --baseline")
     if args.baseline:
-        if args.baseline not in conditions or args.treatment not in conditions:
+        if args.baseline not in conditions:
+            raise ValueError("--baseline must match a --condition name")
+        if not treatments:
+            treatments = [name for name in conditions if name != args.baseline]
+        if len(treatments) != len(set(treatments)):
+            raise ValueError("--treatment names must be unique")
+        if args.baseline in treatments or any(
+            treatment not in conditions for treatment in treatments
+        ):
             raise ValueError("paired condition names must match --condition names")
-        result["paired_delta"] = {
-            "treatment_minus_baseline": f"{args.treatment}-{args.baseline}",
-            "metrics": paired_delta(
-                result["conditions"][args.baseline],
-                result["conditions"][args.treatment],
-            ),
-        }
+
+        result["paired_deltas"] = {}
+        for treatment in treatments:
+            comparison = {
+                "treatment_minus_baseline": f"{treatment}-{args.baseline}",
+                "metrics": paired_delta(
+                    result["conditions"][args.baseline],
+                    result["conditions"][treatment],
+                ),
+            }
+            result["paired_deltas"][treatment] = comparison
+
+        # Preserve the original single-comparison field for callers that pass
+        # exactly one treatment.
+        if len(treatments) == 1:
+            result["paired_delta"] = result["paired_deltas"][treatments[0]]
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
