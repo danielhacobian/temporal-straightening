@@ -76,7 +76,10 @@ completed_epoch() {
 
 run_one() {
   local token="$1" name="$2" gpu_csv="$3" port="$4"
-  local out="$checkpoint_root/$name" done_epochs remaining rc
+  local out="$checkpoint_root/$name" done_epochs remaining rc num_processes
+  local -a gpu_ids
+  IFS=',' read -r -a gpu_ids <<< "$gpu_csv"
+  num_processes="${#gpu_ids[@]}"
   mkdir -p "$out"
   done_epochs="$(completed_epoch "$out")"
   if (( done_epochs >= target_epochs )) && grep -qE "Epoch[[:space:]]+$target_epochs[[:space:]]+Training loss:" "$out/train.log" 2>/dev/null; then
@@ -85,11 +88,11 @@ run_one() {
   fi
   remaining=$((target_epochs - done_epochs))
   wait_for_gpus "$gpu_csv"
-  echo "$(date -Is) START condition=$name token=$token gpus=$gpu_csv completed_epoch=$done_epochs remaining_epochs=$remaining" >> "$status_log"
+  echo "$(date -Is) START condition=$name token=$token gpus=$gpu_csv num_processes=$num_processes completed_epoch=$done_epochs remaining_epochs=$remaining" >> "$status_log"
   set +e
   env "${common_env[@]}" CUDA_VISIBLE_DEVICES="$gpu_csv" \
     "$HOME/.conda/envs/ts/bin/accelerate" launch \
-      --num_processes 4 \
+      --num_processes "$num_processes" \
       --main_process_port "$port" \
       train.py \
       --config-name umaze_ablation_base \
@@ -135,6 +138,8 @@ run_wave \
   aggr3b1_1e-1 r3_beta1 0,1,2,3 29710 \
   aggr1_1e-1 r1_speed_only 4,5,6,7 29720
 
-run_wave aggr2_5e-2 r2_full_matched 0,1,2,3 29730
+# R2 runs after the first wave, so use the full node while preserving the
+# configured effective batch size (train.py divides it across all processes).
+run_wave aggr2_5e-2 r2_full_matched 0,1,2,3,4,5,6,7 29730
 
 echo "$(date -Is) ALL_TRAINING_COMPLETE" >> "$status_log"
