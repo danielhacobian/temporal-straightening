@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render the Wall trajectory-penalty ablation report from validated artifacts."""
+"""Render a trajectory-penalty ablation report from validated artifacts."""
 
 from __future__ import annotations
 
@@ -71,15 +71,16 @@ def render_report(
     comparison: dict[str, Any],
     checkpoint_root: Path,
     r0_train_log: Optional[Path] = None,
+    environment: str = "Wall",
 ) -> str:
     seeds = comparison["conditions"]["r0"]["seeds"]
     seed_headers = " | ".join(f"Seed {seed}" for seed in seeds)
     separator = " | ".join("---:" for _ in seeds)
     lines = [
-        "# Wall trajectory-penalty ablation",
+        f"# {environment} trajectory-penalty ablation",
         "",
         "This study compares speed-sensitive latent trajectory penalties with the",
-        "existing direction-only Wall baseline. Every condition uses DINOv2 patch",
+        f"existing direction-only {environment} baseline. Every condition uses DINOv2 patch",
         "features, the learned channel projector, and the epoch-20 checkpoint.",
         "",
         "## Objectives",
@@ -177,11 +178,15 @@ def main() -> None:
     parser.add_argument("--comparison", type=Path, required=True)
     parser.add_argument("--checkpoint-root", type=Path, required=True)
     parser.add_argument("--r0-train-log", type=Path)
+    parser.add_argument("--environment", default="Wall")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
     report = render_report(
-        load_json(args.comparison), args.checkpoint_root, args.r0_train_log
+        load_json(args.comparison),
+        args.checkpoint_root,
+        args.r0_train_log,
+        args.environment,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(report, encoding="utf-8")
