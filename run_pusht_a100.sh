@@ -71,6 +71,10 @@ if [ -z "${PYTHONPATH:-}" ] || ! echo "${PYTHONPATH:-}" | grep -q facebookresear
   [ -n "$HUB_DINO" ] && export PYTHONPATH="$HUB_DINO:${PYTHONPATH:-}"
 fi
 
+# Detached runs have no tty, so wandb.init() would try (and fail) to log in and
+# crash every run. setup_a100.sh sets this; we're standalone, so set it here too.
+export WANDB_MODE="${WANDB_MODE:-disabled}"
+
 # cond -> "encoder=<..> training.straighten=<..> training.encoder_lr=<..>"
 cond_flags() {
   case "$1" in
