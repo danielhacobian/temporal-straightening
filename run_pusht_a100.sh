@@ -30,32 +30,37 @@
 #   - Data lives at $DATASET_DIR/pusht_noise (conf/env/pusht.yaml).
 #   - Training needs no MuJoCo; the pusht gym env only loads at PLANNING time.
 #
-# encoder_lr: Table 3's footnote ("lr=1e-6 for no straightening") governs the
-#   PROJECTOR lr, so channel_off uses 1e-6 and the straightening row (channel_on)
-#   uses the 1e-5 default. cls and patch have NO trainable encoder params, so lr
-#   is a no-op there — but the run-dir template omits feature_key, so cls and
-#   patch would collide on 'pusht_False_..._projnone_dim384_hw14_...'. We split
-#   them by lr (cls=1e-5, patch=1e-6), the same trick run_row6_a100.sh uses.
+# OUTPUT LAYOUT — each condition is self-contained under one root ($PUSHT_ROOT,
+#   default ~/pusht-reproduction). checkpoints + train.log live together:
+#     pusht-reproduction/
+#     ├── cls_reproduction/            (cls)          train.log + test/<run>/checkpoints/
+#     ├── patch_reproduction/          (patch)        ...
+#     ├── patchproj_reproduction/      (channel_off)  ...
+#     └── straightening_reproduction/  (channel_on)   ...
+#
+# encoder_lr: Table 3's footnote is "lr=1e-6 for no straightening", so the three
+#   no-straightening rows (cls, patch, channel_off) use 1e-6 and only channel_on
+#   uses the 1e-5 default. (For cls/patch the encoder has no trainable params, so
+#   lr is a no-op anyway; separate output folders mean no run-dir collision to
+#   work around, unlike run_row6_a100.sh.)
 #
 # STAGES (JupyterHub terminal):
 #   export DATASET_DIR=/home/jupyter-deuk-c4e4/data     # must contain pusht_noise/
-#   bash run_pusht_a100.sh train                 # all 6, one per free GPU, nohup'd
+#   bash run_pusht_a100.sh train                 # all 4, one per free GPU, detached
 #   bash run_pusht_a100.sh train channel_on cls  # OR just the ones you name
 #   bash run_pusht_a100.sh dims                  # verify shapes on the LIVE runs
 #   bash run_pusht_a100.sh status                # epochs done + checkpoints
 set -euo pipefail
 
 REPO="${REPO:-$(cd "$(dirname "$0")" && pwd)}"
-CKPT_ROOT="${CKPT_ROOT:-$HOME/ts_ckpts_pusht}"
+PUSHT_ROOT="${PUSHT_ROOT:-$HOME/pusht-reproduction}"   # one root; a folder per condition
 DATA="${DATA:-${DATASET_DIR:-$HOME/data}/pusht_noise}"
-LOG_DIR="${LOG_DIR:-$HOME/logs}"
 EPOCHS="${EPOCHS:-20}"
 FREE_MIB="${FREE_MIB:-2000}"   # a GPU with less than this used (MiB) counts as free
 STAGE="${1:-}"; shift || true
 
 ALL_CONDS="cls patch channel_off channel_on"
 
-mkdir -p "$LOG_DIR"
 usage() { echo "usage: bash run_pusht_a100.sh {train|dims|status} [cond ...]"; echo "  conds: $ALL_CONDS"; exit 1; }
 [ -n "$STAGE" ] || usage
 [ -f "$REPO/train.py" ] || { echo "!! run from the repo root (train.py not found)"; exit 1; }
@@ -69,7 +74,7 @@ fi
 # cond -> "encoder=<..> training.straighten=<..> training.encoder_lr=<..>"
 cond_flags() {
   case "$1" in
-    cls)         echo "encoder=dino_cls     training.straighten=False      training.encoder_lr=1e-5" ;;
+    cls)         echo "encoder=dino_cls     training.straighten=False      training.encoder_lr=1e-6" ;;
     patch)       echo "encoder=dino         training.straighten=False      training.encoder_lr=1e-6" ;;
     channel_off) echo "encoder=dino_channel training.straighten=False      training.encoder_lr=1e-6" ;;
     channel_on)  echo "encoder=dino_channel training.straighten=aggcos1e-1 training.encoder_lr=1e-5" ;;
@@ -77,16 +82,19 @@ cond_flags() {
   esac
 }
 
-# cond -> glob matching its run dir under $CKPT_ROOT/test (proj+dim+hw+lr are unique)
-find_run_dir() {
-  local g
+# cond -> its self-contained output folder under $PUSHT_ROOT
+cond_dir() {
   case "$1" in
-    cls)         g='pusht_False_*projnone_dim384_hw14*lr1e-05' ;;
-    patch)       g='pusht_False_*projnone_dim384_hw14*lr1e-06' ;;
-    channel_off) g='pusht_*projchannel_dim8_hw14*lr1e-06' ;;
-    channel_on)  g='pusht_*projchannel_dim8_hw14*lr1e-05' ;;
+    cls)         echo "$PUSHT_ROOT/cls_reproduction" ;;
+    patch)       echo "$PUSHT_ROOT/patch_reproduction" ;;
+    channel_off) echo "$PUSHT_ROOT/patchproj_reproduction" ;;
+    channel_on)  echo "$PUSHT_ROOT/straightening_reproduction" ;;
   esac
-  find "$CKPT_ROOT/test" -maxdepth 1 -type d -name "$g" 2>/dev/null | head -1
+}
+
+# each cond folder holds exactly one hydra run under test/ -> just take it
+find_run_dir() {
+  find "$(cond_dir "$1")/test" -maxdepth 1 -type d -name 'pusht_*' 2>/dev/null | head -1
 }
 
 CONDS="${*:-$ALL_CONDS}"
@@ -115,14 +123,14 @@ train)
       break
     fi
     g="${GPU_ARR[$i]}"; i=$((i+1))
-    log="$LOG_DIR/pusht_${c}.log"
+    dir="$(cond_dir "$c")"; mkdir -p "$dir"; log="$dir/train.log"
     read -r -a F <<< "$(cond_flags "$c")"
-    echo "----- launch '$c' on GPU $g -> $log -----"
+    echo "----- launch '$c' on GPU $g -> $dir -----"
     # setsid + nohup: new session AND SIGHUP ignored. Fully detaches from this
     # terminal, so closing the browser / logging out of JupyterLab does NOT stop
     # it. (A JupyterHub *idle cull* kills the whole cgroup regardless — see below.)
     CUDA_VISIBLE_DEVICES="$g" setsid nohup python train.py --config-name train.yaml \
-      env=pusht "${F[@]}" training.epochs="$EPOCHS" ckpt_base_path="$CKPT_ROOT" \
+      env=pusht "${F[@]}" training.epochs="$EPOCHS" ckpt_base_path="$dir" \
       > "$log" 2>&1 &
     echo "  pid $!   flags: ${F[*]}"
   done
@@ -137,7 +145,7 @@ train)
 dims)
   # Read the shape/projector lines straight out of the running logs.
   for c in $CONDS; do
-    log="$LOG_DIR/pusht_${c}.log"
+    log="$(cond_dir "$c")/train.log"
     echo "===== $c ====="
     if [ ! -f "$log" ]; then echo "  (no log — not launched)"; continue; fi
     grep -m1 -i 'pos_embedding[^=]*shape' "$log" 2>/dev/null | sed 's/^/  /' \
@@ -151,9 +159,9 @@ dims)
 
 status)
   for c in $CONDS; do
-    log="$LOG_DIR/pusht_${c}.log"; run="$(find_run_dir "$c")"
+    log="$(cond_dir "$c")/train.log"; run="$(find_run_dir "$c")"
     ep=$(grep -c "Training loss" "$log" 2>/dev/null || echo 0)
-    echo "===== $c   (epochs w/ loss logged: $ep / $EPOCHS) ====="
+    echo "===== $c -> $(cond_dir "$c")   (epochs w/ loss logged: $ep / $EPOCHS) ====="
     [ -f "$log" ] && tail -2 "$log" | sed 's/^/  /' || echo "  (no log yet)"
     [ -n "$run" ] && ls -1 "$run/checkpoints/" 2>/dev/null | sed 's/^/  ckpt: /' || echo "  (no run dir yet)"
   done
