@@ -44,9 +44,12 @@
 #   lr is a no-op anyway; separate output folders mean no run-dir collision to
 #   work around, unlike run_row6_a100.sh.)
 #
+# EPOCHS default is 2 to match the paper's PushT protocol (A.3). This is
+#   intentional and PushT-specific — see the EPOCHS line below.
+#
 # STAGES (JupyterHub terminal):
 #   export DATASET_DIR=/home/jupyter-deuk-c4e4/data     # must contain pusht_noise/
-#   bash run_pusht_a100.sh train                 # all 4, one per free GPU, detached
+#   bash run_pusht_a100.sh train                 # all 4, one per free GPU, detached, 2 epochs
 #   bash run_pusht_a100.sh train channel_on cls  # OR just the ones you name
 #   bash run_pusht_a100.sh dims                  # verify shapes on the LIVE runs
 #   bash run_pusht_a100.sh status                # epochs done + checkpoints
@@ -55,7 +58,9 @@ set -euo pipefail
 REPO="${REPO:-$(cd "$(dirname "$0")" && pwd)}"
 PUSHT_ROOT="${PUSHT_ROOT:-$HOME/pusht-reproduction}"   # one root; a folder per condition
 DATA="${DATA:-${DATASET_DIR:-$HOME/data}/pusht_noise}"
-EPOCHS="${EPOCHS:-20}"
+# PushT trains for 2 epochs, NOT 20 (paper A.3: 18500 trajectories, len 100-300).
+# Wall/PointMaze use 20; PushT is the documented exception. Do not bump this to 20.
+EPOCHS="${EPOCHS:-2}"
 FREE_MIB="${FREE_MIB:-2000}"   # a GPU with less than this used (MiB) counts as free
 STAGE="${1:-}"; shift || true
 
