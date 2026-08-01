@@ -6,6 +6,137 @@ factorized, or regularized at probe-selected intermediate layers. Every planning
 result below uses the epoch-20 checkpoint, seeds 100/200/300, and 50 evaluations
 per seed (150 evaluations per condition).
 
+## Plain-English overview
+
+### The experiment in one sentence
+
+We tested whether explicitly teaching a visual world model about motion--especially
+speed and direction--would make its internal map of UMaze more physically honest
+and therefore improve planning.
+
+The hypothesis was:
+
+> Better motion representation -> more honest latent distances -> better plans.
+
+### What problem were we investigating?
+
+The model sees UMaze as images and converts every image into a latent
+representation: a numerical description of the current situation. The planner
+uses distances between these representations to choose a route to the goal.
+
+Ideally, nearby latent states should be easy to travel between, distant states
+should require longer routes, and states separated by a wall should not look
+deceptively close. A latent step should also reflect both **where** the agent moved
+and **how much** it moved.
+
+The concern was that a model could recognize the visual appearance of each
+location without learning the maze's real movement geometry. If that happens,
+the planner can be given a visually plausible but physically misleading map.
+
+### Step 1: find where the model stores physical information
+
+Before changing training, we froze the existing model and trained simple linear
+probes at every DINO and predictor layer. A linear probe asks whether a physical
+quantity can be recovered from a representation using only a simple linear
+equation. It does not change the world model.
+
+We probed for:
+
+- absolute and goal-relative position;
+- Cartesian velocity `(vx, vy)` and acceleration;
+- polar speed and heading;
+- collision;
+- action magnitude; and
+- true A* distance to the goal.
+
+We tested CLS features, individual patches, pooled patches, projected features,
+and intermediate predictor features. We also compared Cartesian velocity with a
+polar description that explicitly separates speed from direction:
+
+```text
+speed = sqrt(vx^2 + vy^2)
+heading = atan2(vy, vx)
+```
+
+Position was already extremely easy to decode from frozen DINO features
+(approximately 0.99 R²). Speed and direction frequently occupied nearly
+orthogonal subspaces, with angles around 83--85 degrees. The probe sweep selected
+DINO layer 6 pooled patches and predictor layer 1 pooled visual features.
+
+The selection score tells us where information is easy to **read**. It does not
+prove that applying a training loss at that layer will help planning.
+
+### Step 2: train five versions of the model
+
+- **R0** is the direction-only baseline. It encourages consecutive latent changes
+  to point consistently, but does not directly constrain latent step size.
+- **R2** constrains direction and latent step magnitude. In simple terms, it asks
+  the model to move through latent space at a steadier pace.
+- **Calibrated speed** adds a target based on the agent's true physical
+  displacement. Larger real movements should cause appropriately larger latent
+  movements instead of treating every transition as equally large.
+- **Factorized** gives direction and speed separate learned projections, with the
+  goal of preventing the two signals from interfering.
+- **Layer-aware factorized** applies those separate losses at the two
+  probe-selected intermediate layers instead of only at the final planning space.
+
+### Step 3: test whether each model can actually plan
+
+Every condition received the same matched planning evaluation: three seeds, 50
+evaluations per seed, and 150 evaluations per condition. The primary metric was
+the percentage of trials that reached the goal. We also measured final
+proprioceptive, state, and visual distance.
+
+R2 was the best planner at 94.00% success. Calibrated speed reached 93.33%, and
+both beat the 92.00% R0 baseline. Factorized fell to 86.67%, while layer-aware
+factorized collapsed to 24.00%.
+
+### Step 4: test whether latent distance became more honest
+
+We placed the agent on a grid of valid UMaze states. For every state, we compared:
+
+1. its visual latent distance to the goal; and
+2. the true shortest-path distance to the goal computed by A*.
+
+A* respects the maze walls, so it measures how far the goal really is along a
+traversable route. Spearman correlation then measures whether the latent model
+ranks states in the same near-to-far order as A*.
+
+Calibrated speed produced the best correlation: 0.9791 compared with 0.9560 for
+R0. This directly supports the proposed middle link: calibrating latent speed to
+true movement made the internal distance map more faithful to the maze.
+
+Factorized scored 0.3152 and layer-aware factorized scored 0.6259. Their global
+latent geometry became much less faithful, matching their weaker planning.
+
+### Step 5: check what motion information remained readable
+
+After training, we repeated detailed Cartesian and polar motion probes. Some of
+the unsuccessful models made local physical variables *more* readable. For
+example, factorized had the most decodable speed, while layer-aware factorized
+had the most decodable velocity. Yet both planned worse than R0.
+
+This is the experiment's most important warning:
+
+> A model can store motion information clearly while still arranging its latent
+> map badly for planning.
+
+Linear probes measure whether information exists and is easy to extract. A
+planner additionally needs obstacle topology, controllability, and goal-distance
+ordering to remain coherent in the same latent space.
+
+### Bottom line
+
+The speed term is doing something useful; it is not merely an extra constraint.
+R2 gave the best immediate planning result, while calibrated speed gave the
+strongest evidence that physically meaningful speed supervision makes latent
+distance more honest.
+
+Naively separating speed and direction, especially at intermediate layers, was
+harmful. The safest next direction is therefore to keep R2 or calibrated speed in
+the final planner representation and use layer probes as diagnostics rather than
+automatic instructions for where to apply a loss.
+
 ## Conditions
 
 - **R0:** existing direction-only trajectory regularizer.
