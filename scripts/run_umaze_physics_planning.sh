@@ -48,7 +48,7 @@ run_job() {
   CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON" plan.py --config-name plan_gd.yaml \
     "ckpt_base_path=$(condition_dir "$condition")" \
     "model_name=$condition" model_epoch=20 n_evals=10 \
-    "env.dataset.use_frame_files=$USE_FRAME_FILES" \
+    "model_dataset_use_frame_files=$USE_FRAME_FILES" \
     +wandb_logging=false "seed=$seed" "+eval_start_index=$offset" \
     "hydra.run.dir=$out" > "$out/runner.log" 2>&1
   status "PLAN_END gpu=$gpu condition=$condition seed=$seed offset=$offset"
