@@ -114,7 +114,7 @@ run_condition() {
 run_condition calibrated_speed "1,2" 29731 calibrated_speed "" & p1=$!
 run_condition factorized "3,4" 29732 factorized \
   "predictor.direction_projection_dim=4 predictor.speed_projection_dim=2" & p2=$!
-run_condition layer_aware_factorized "5,6" 29733 layer_aware_factorized \
+run_condition layer_aware_factorized "6,7" 29733 layer_aware_factorized \
   "encoder.feature_layer=$DINO_LAYER training.regularizer_predictor_layer=$PREDICTOR_LAYER predictor.direction_projection_dim=4 predictor.speed_projection_dim=2" & p3=$!
 
 failed=0
