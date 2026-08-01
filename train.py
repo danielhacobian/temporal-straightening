@@ -384,6 +384,10 @@ class Trainer:
             vcreg_std_coeff=self.cfg.training.get("vcreg_std_coeff", 0),
             vcreg_cov_coeff=self.cfg.training.get("vcreg_cov_coeff", 0),
             vcreg_apply_to=self.cfg.training.get("vcreg_apply_to", "enc"),
+            motion_regularizer=self.cfg.training.get("motion_regularizer", "none"),
+            motion_regularizer_scale=self.cfg.training.get("motion_regularizer_scale", 0.1),
+            speed_calibration_scale=self.cfg.training.get("speed_calibration_scale", 0.1),
+            regularizer_predictor_layer=self.cfg.training.get("regularizer_predictor_layer", None),
         )
         self._log_trainable_params(self.model, "model")
 
@@ -565,7 +569,7 @@ class Trainer:
             if self.cfg.has_decoder:
                 self.decoder.train(decoder_active)
             z_out, visual_out, visual_reconstructed, loss, loss_components = self.model(
-                obs, act
+                obs, act, state=state
             )
 
             self.encoder_optimizer.zero_grad()
@@ -686,7 +690,7 @@ class Trainer:
             plot = i == 0
             self.model.eval()
             z_out, visual_out, visual_reconstructed, loss, loss_components = self.model(
-                obs, act
+                obs, act, state=state
             )
 
             loss = self.accelerator.gather_for_metrics(loss).mean()

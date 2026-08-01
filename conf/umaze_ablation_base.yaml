@@ -19,6 +19,10 @@ training:
   vcreg_std_coeff: 0
   vcreg_cov_coeff: 0
   mixed_precision: bf16
+  motion_regularizer: none
+  motion_regularizer_scale: 0.1
+  speed_calibration_scale: 0.1
+  regularizer_predictor_layer: null
 img_size: 224
 frameskip: 5
 concat_dim: 1
@@ -76,6 +80,7 @@ encoder:
   name: dinov2_vits14
   feature_key: x_norm_patchtokens
   projector: channel
+  feature_layer: null
   agg_type: mlp
   agg_mlp_hidden_dim: 512
   agg_out_dim: 128
@@ -124,3 +129,6 @@ predictor:
   dropout: 0.1
   emb_dropout: 0
   pool: mean
+  motion_input_dim: ${encoder.projector_out_dim}
+  direction_projection_dim: 0
+  speed_projection_dim: 0

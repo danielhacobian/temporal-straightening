@@ -115,12 +115,14 @@ class DinoV2Encoder(nn.Module):
         agg_type="flatten",
         agg_out_dim=None,
         agg_mlp_hidden_dim=None,
+        feature_layer=None,
         **kwargs,
     ):
         super().__init__()
         self.name = name
         self.base_model = torch.hub.load("facebookresearch/dinov2:81b2b6419385", name)
         self.feature_key = feature_key
+        self.feature_layer = None if feature_layer is None else int(feature_layer)
         self.emb_dim = self.base_model.num_features
         self.projector_name = projector
         self.agg_type = agg_type
@@ -180,8 +182,30 @@ class DinoV2Encoder(nn.Module):
         )
         return x
 
-    def forward(self, x, return_agg=False):
-        emb = self.base_model.forward_features(x)[self.feature_key]
+    def _select_raw_features(self, x, layer=None):
+        """Return patch and CLS features from the final or an intermediate block."""
+        layer = getattr(self, "feature_layer", None) if layer is None else layer
+        if layer is None:
+            features = self.base_model.forward_features(x)
+            return features["x_norm_patchtokens"], features["x_norm_clstoken"]
+
+        n_blocks = len(self.base_model.blocks)
+        layer = int(layer)
+        if layer < 0:
+            layer += n_blocks
+        if not 0 <= layer < n_blocks:
+            raise ValueError(f"DINO layer {layer} is outside [0, {n_blocks - 1}]")
+        result = self.base_model.get_intermediate_layers(
+            x,
+            n=[layer],
+            reshape=False,
+            return_class_token=True,
+            norm=True,
+        )[0]
+        patch, cls = result
+        return patch, cls
+
+    def _project_patch_tokens(self, emb):
         if hasattr(self, "projector"):
             b, n, c = emb.shape
             h = w = int(n ** 0.5)
@@ -193,10 +217,57 @@ class DinoV2Encoder(nn.Module):
                 self.latent_ndim = 2
             elif self.projector_name == "global":
                 emb = self.projector(emb)
-                self.latent_ndim = 2 if emb.dim() == 3 else 1
+        return emb
+
+    def forward_intermediates(self, x, layers=None, include_projected=True):
+        """Expose comparable representations at every requested DINO block.
+
+        Each item contains normalized CLS and patch tokens, mean-pooled patches,
+        and (when requested) the trained projector/aggregator output.  This API
+        is intentionally analysis-only: regular ``forward`` remains unchanged.
+        """
+        if layers is None:
+            layers = list(range(len(self.base_model.blocks)))
+        n_blocks = len(self.base_model.blocks)
+        normalized_layers = []
+        for layer in layers:
+            layer = int(layer)
+            layer = layer + n_blocks if layer < 0 else layer
+            if not 0 <= layer < n_blocks:
+                raise ValueError(f"DINO layer {layer} is outside [0, {n_blocks - 1}]")
+            normalized_layers.append(layer)
+        raw_outputs = self.base_model.get_intermediate_layers(
+            x,
+            n=normalized_layers,
+            reshape=False,
+            return_class_token=True,
+            norm=True,
+        )
+        outputs = []
+        for layer, (patch, cls) in zip(normalized_layers, raw_outputs):
+            item = {
+                "layer": int(layer),
+                "cls": cls,
+                "patches": patch,
+                "pooled_patches": patch.mean(dim=1),
+            }
+            if include_projected and self.feature_key == "x_norm_patchtokens":
+                projected = self._project_patch_tokens(patch)
+                item["projected"] = projected
+                item["aggregated"] = (
+                    self.agg(projected) if projected.dim() == 3 else projected
+                )
+            outputs.append(item)
+        return outputs
+
+    def forward(self, x, return_agg=False):
+        patch, cls = self._select_raw_features(x)
+        emb = patch if self.feature_key == "x_norm_patchtokens" else cls
+        if self.feature_key == "x_norm_patchtokens":
+            emb = self._project_patch_tokens(emb)
         if return_agg and emb.dim() == 3:
             emb = self.agg(emb)
             #self.latent_ndim = 1
-        if self.latent_ndim == 1:
+        if emb.dim() == 2:
             emb = emb.unsqueeze(1) # dummy patch dim
         return emb
