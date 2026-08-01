@@ -1,0 +1,12 @@
+{
+  "dino": {
+    "layer": 6,
+    "representation": "pooled_patches",
+    "score": 0.38076688384876617
+  },
+  "predictor": {
+    "layer": 1,
+    "representation": "pooled_visual",
+    "score": 0.3311240158617124
+  }
+}

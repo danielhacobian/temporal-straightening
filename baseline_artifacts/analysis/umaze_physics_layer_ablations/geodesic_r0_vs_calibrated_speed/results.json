@@ -1,0 +1,46 @@
+{
+  "n_states": 469,
+  "grid_spacing": 0.1,
+  "grid_bounds": [
+    0.5,
+    3.1
+  ],
+  "goal_xy_requested": [
+    1.0,
+    1.0
+  ],
+  "goal_node": [
+    5,
+    5
+  ],
+  "goal_xy_evaluated": [
+    1.0,
+    1.0
+  ],
+  "r0_checkpoint": "/home/jupyter-deuk-13ad/temporal-straightening/baseline_artifacts/checkpoints/umaze_q1_retrain/r0_direction_only/checkpoints/model_20.pth",
+  "r2_checkpoint": "/home/jupyter-deuk-13ad/temporal-straightening/baseline_artifacts/checkpoints/umaze_physics_layer_ablations/calibrated_speed/checkpoints/model_20.pth",
+  "r0": {
+    "spearman_rho": 0.9560095384073316,
+    "p_value": 7.011889463997008e-251,
+    "bootstrap_ci_95": [
+      0.9400665531448932,
+      0.9678716083327376
+    ]
+  },
+  "r2": {
+    "spearman_rho": 0.979083559344054,
+    "p_value": 0.0,
+    "bootstrap_ci_95": [
+      0.9709663221536701,
+      0.9847621419749681
+    ]
+  },
+  "delta_r2_minus_r0": 0.023074020936722395,
+  "paired_bootstrap_delta_ci_95": [
+    0.016009113419243513,
+    0.03201737176786373
+  ],
+  "bootstrap_samples": 5000,
+  "seed": 20260723,
+  "device": "cuda:0"
+}

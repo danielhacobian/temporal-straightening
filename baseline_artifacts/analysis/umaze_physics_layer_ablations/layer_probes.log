@@ -1,0 +1,157 @@
+Using cache found in /home/jupyter-deuk-13ad/.cache/torch/hub/facebookresearch_dinov2_81b2b6419385
+/home/jupyter-deuk-13ad/.cache/torch/hub/facebookresearch_dinov2_81b2b6419385/dinov2/layers/swiglu_ffn.py:51: UserWarning: xFormers is not available (SwiGLU)
+  warnings.warn("xFormers is not available (SwiGLU)")
+/home/jupyter-deuk-13ad/.cache/torch/hub/facebookresearch_dinov2_81b2b6419385/dinov2/layers/attention.py:33: UserWarning: xFormers is not available (Attention)
+  warnings.warn("xFormers is not available (Attention)")
+/home/jupyter-deuk-13ad/.cache/torch/hub/facebookresearch_dinov2_81b2b6419385/dinov2/layers/block.py:40: UserWarning: xFormers is not available (Block)
+  warnings.warn("xFormers is not available (Block)")
+Unknown projector 'none' for patch tokens; proceeding without projector.
+Loaded 2000 rollouts
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+dino/0/cls 0.29159952173371273
+dino/0/individual_patches 0.06412139389793803
+dino/0/pooled_patches 0.35860684840608836
+dino/0/projected_aggregate 0.25086147756892413
+dino/0/projected_patches 0.008137679823592023
+dino/1/cls 0.3214863140897896
+dino/1/individual_patches 0.048483774236078636
+dino/1/pooled_patches 0.36673032586241544
+dino/1/projected_aggregate 0.2974296170308341
+dino/1/projected_patches 0.005970215066149934
+dino/10/cls 0.3651215704307959
+dino/10/individual_patches 0.11144733961306678
+dino/10/pooled_patches 0.3760335394226382
+dino/10/projected_aggregate 0.3526051469161265
+dino/10/projected_patches 0.02028924404752681
+dino/11/cls 0.369910505944801
+dino/11/individual_patches 0.21573032058193037
+dino/11/pooled_patches 0.3746399447454367
+dino/11/projected_aggregate 0.37531328271130754
+dino/11/projected_patches 0.033379586397391595
+dino/2/cls 0.34056944424209884
+dino/2/individual_patches 0.04620966695400109
+dino/2/pooled_patches 0.37059109645565746
+dino/2/projected_aggregate 0.32000920436690905
+dino/2/projected_patches 0.010652942295231019
+dino/3/cls 0.36019203181393955
+dino/3/individual_patches 0.07356734473280804
+dino/3/pooled_patches 0.3725684242884005
+dino/3/projected_aggregate 0.3295923678813137
+dino/3/projected_patches 0.004551496453252016
+dino/4/cls 0.35795582529968706
+dino/4/individual_patches 0.06189755263909848
+dino/4/pooled_patches 0.37835523213745437
+dino/4/projected_aggregate 0.3340472083899987
+dino/4/projected_patches 0.00439650251527864
+dino/5/cls 0.36561000267887545
+dino/5/individual_patches 0.10468069378211797
+dino/5/pooled_patches 0.38010845060105547
+dino/5/projected_aggregate 0.35248168465624746
+dino/5/projected_patches 0.026968486641988792
+dino/6/cls 0.3741333177417736
+dino/6/individual_patches 0.11553758790448274
+dino/6/pooled_patches 0.38076688384876617
+dino/6/projected_aggregate 0.3601648108915051
+dino/6/projected_patches 0.01088882589922612
+dino/7/cls 0.3720363136354027
+dino/7/individual_patches 0.12197924012742441
+dino/7/pooled_patches 0.3753337080165057
+dino/7/projected_aggregate 0.3635169954715095
+dino/7/projected_patches 0.01311429831385989
+dino/8/cls 0.3698730695557881
+dino/8/individual_patches 0.1214210534482549
+dino/8/pooled_patches 0.37775728177439627
+dino/8/projected_aggregate 0.357675256226741
+dino/8/projected_patches 0.0166860329140295
+dino/9/cls 0.3673584982216732
+dino/9/individual_patches 0.1221837894574154
+dino/9/pooled_patches 0.37481901426910297
+dino/9/projected_aggregate 0.3604184438966343
+dino/9/projected_patches 0.019633218418334576
+predictor/0/individual_visual_tokens 0.04684679660605702
+predictor/0/pooled_visual 0.2818226461120203
+predictor/1/individual_visual_tokens 0.05800702300585592
+predictor/1/pooled_visual 0.3311240158617124
+predictor/2/individual_visual_tokens 0.08032975051339214
+predictor/2/pooled_visual 0.2830945333947138
+predictor/3/individual_visual_tokens 0.05035044007902485
+predictor/3/pooled_visual 0.15485081954730406
+predictor/4/individual_visual_tokens 0.036326692003093145
+predictor/4/pooled_visual 0.14182267631951503
+predictor/5/individual_visual_tokens 0.04876284231409449
+predictor/5/pooled_visual 0.2021451101501465
+{
+  "dino": {
+    "layer": 6,
+    "representation": "pooled_patches",
+    "score": 0.38076688384876617
+  },
+  "predictor": {
+    "layer": 1,
+    "representation": "pooled_visual",
+    "score": 0.3311240158617124
+  }
+}

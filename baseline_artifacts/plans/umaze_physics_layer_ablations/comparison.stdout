@@ -1,0 +1,502 @@
+{
+  "status": "complete",
+  "conditions": {
+    "r0": {
+      "status": "complete",
+      "seeds": [
+        100,
+        200,
+        300
+      ],
+      "n_seeds": 3,
+      "n_evals_per_seed": [
+        50,
+        50,
+        50
+      ],
+      "seed_summaries": [
+        "/home/jupyter-deuk-13ad/temporal-straightening/baseline_artifacts/plans/umaze_physics_layer_ablations/r0/seed_100/aggregate.json",
+        "/home/jupyter-deuk-13ad/temporal-straightening/baseline_artifacts/plans/umaze_physics_layer_ablations/r0/seed_200/aggregate.json",
+        "/home/jupyter-deuk-13ad/temporal-straightening/baseline_artifacts/plans/umaze_physics_layer_ablations/r0/seed_300/aggregate.json"
+      ],
+      "per_seed": {
+        "100": {
+          "final_eval/mean_div_proprio_emb": 4.148339795883299,
+          "final_eval/mean_div_visual_emb": 18.777809691387308,
+          "final_eval/mean_proprio_dist": 0.8414221405982971,
+          "final_eval/mean_state_dist": 2.5391525983810426,
+          "final_eval/mean_visual_dist": 0.3887097417091837,
+          "final_eval/success_rate": 0.98
+        },
+        "200": {
+          "final_eval/mean_div_proprio_emb": 4.5609572398482925,
+          "final_eval/mean_div_visual_emb": 19.206952530383248,
+          "final_eval/mean_proprio_dist": 0.9433404326438903,
+          "final_eval/mean_state_dist": 2.943204379081726,
+          "final_eval/mean_visual_dist": 0.38146763392857147,
+          "final_eval/success_rate": 0.92
+        },
+        "300": {
+          "final_eval/mean_div_proprio_emb": 5.937778768880112,
+          "final_eval/mean_div_visual_emb": 20.57422807319893,
+          "final_eval/mean_proprio_dist": 1.071448314189911,
+          "final_eval/mean_state_dist": 3.1625555038452147,
+          "final_eval/mean_visual_dist": 0.40135801977040814,
+          "final_eval/success_rate": 0.86
+        }
+      },
+      "aggregate": {
+        "final_eval/mean_div_proprio_emb": {
+          "mean": 4.882358601537234,
+          "population_std": 0.7650695332197383
+        },
+        "final_eval/mean_div_visual_emb": {
+          "mean": 19.519663431656497,
+          "population_std": 0.7659942695429768
+        },
+        "final_eval/mean_proprio_dist": {
+          "mean": 0.9520702958106995,
+          "population_std": 0.09411045998358603
+        },
+        "final_eval/mean_state_dist": {
+          "mean": 2.8816374937693277,
+          "population_std": 0.25819973749095276
+        },
+        "final_eval/mean_visual_dist": {
+          "mean": 0.39051179846938777,
+          "population_std": 0.008219587120998718
+        },
+        "final_eval/success_rate": {
+          "mean": 0.9199999999999999,
+          "population_std": 0.04898979485566356
+        }
+      }
+    },
+    "r2": {
+      "status": "complete",
+      "seeds": [
+        100,
+        200,
+        300
+      ],
+      "n_seeds": 3,
+      "n_evals_per_seed": [
+        50,
+        50,
+        50
+      ],
+      "seed_summaries": [
+        "/home/jupyter-deuk-13ad/temporal-straightening/baseline_artifacts/plans/umaze_physics_layer_ablations/r2/seed_100/aggregate.json",
+        "/home/jupyter-deuk-13ad/temporal-straightening/baseline_artifacts/plans/umaze_physics_layer_ablations/r2/seed_200/aggregate.json",
+        "/home/jupyter-deuk-13ad/temporal-straightening/baseline_artifacts/plans/umaze_physics_layer_ablations/r2/seed_300/aggregate.json"
+      ],
+      "per_seed": {
+        "100": {
+          "final_eval/mean_div_proprio_emb": 5.20821663533648,
+          "final_eval/mean_div_visual_emb": 16.306055059565,
+          "final_eval/mean_proprio_dist": 0.8597017288208008,
+          "final_eval/mean_state_dist": 2.596566414833069,
+          "final_eval/mean_visual_dist": 0.39340109481292523,
+          "final_eval/success_rate": 0.98
+        },
+        "200": {
+          "final_eval/mean_div_proprio_emb": 5.957512895058721,
+          "final_eval/mean_div_visual_emb": 17.52131728934051,
+          "final_eval/mean_proprio_dist": 0.9429687261581421,
+          "final_eval/mean_state_dist": 2.9115686416625977,
+          "final_eval/mean_visual_dist": 0.3932973267431973,
+          "final_eval/success_rate": 0.96
+        },
+        "300": {
+          "final_eval/mean_div_proprio_emb": 7.054306189904954,
+          "final_eval/mean_div_visual_emb": 18.499669691514185,
+          "final_eval/mean_proprio_dist": 1.081695294380188,
+          "final_eval/mean_state_dist": 3.256415319442749,
+          "final_eval/mean_visual_dist": 0.4084844015731292,
+          "final_eval/success_rate": 0.88
+        }
+      },
+      "aggregate": {
+        "final_eval/mean_div_proprio_emb": {
+          "mean": 6.073345240100051,
+          "population_std": 0.7581004814622918
+        },
+        "final_eval/mean_div_visual_emb": {
+          "mean": 17.442347346806567,
+          "population_std": 0.8972786550614215
+        },
+        "final_eval/mean_proprio_dist": {
+          "mean": 0.961455249786377,
+          "population_std": 0.0915663673857582
+        },
+        "final_eval/mean_state_dist": {
+          "mean": 2.9215167919794722,
+          "population_std": 0.26947401668150256
+        },
+        "final_eval/mean_visual_dist": {
+          "mean": 0.3983942743764173,
+          "population_std": 0.007134923129109083
+        },
+        "final_eval/success_rate": {
+          "mean": 0.94,
+          "population_std": 0.043204937989385725
+        }
+      }
+    },
+    "calibrated_speed": {
+      "status": "complete",
+      "seeds": [
+        100,
+        200,
+        300
+      ],
+      "n_seeds": 3,
+      "n_evals_per_seed": [
+        50,
+        50,
+        50
+      ],
+      "seed_summaries": [
+        "/home/jupyter-deuk-13ad/temporal-straightening/baseline_artifacts/plans/umaze_physics_layer_ablations/calibrated_speed/seed_100/aggregate.json",
+        "/home/jupyter-deuk-13ad/temporal-straightening/baseline_artifacts/plans/umaze_physics_layer_ablations/calibrated_speed/seed_200/aggregate.json",
+        "/home/jupyter-deuk-13ad/temporal-straightening/baseline_artifacts/plans/umaze_physics_layer_ablations/calibrated_speed/seed_300/aggregate.json"
+      ],
+      "per_seed": {
+        "100": {
+          "final_eval/mean_div_proprio_emb": 5.443169596831874,
+          "final_eval/mean_div_visual_emb": 18.171337617176263,
+          "final_eval/mean_proprio_dist": 0.7632314324378967,
+          "final_eval/mean_state_dist": 2.322578191757202,
+          "final_eval/mean_visual_dist": 0.3858894026360544,
+          "final_eval/success_rate": 0.96
+        },
+        "200": {
+          "final_eval/mean_div_proprio_emb": 5.55642035105956,
+          "final_eval/mean_div_visual_emb": 20.64633412970211,
+          "final_eval/mean_proprio_dist": 1.0049012780189515,
+          "final_eval/mean_state_dist": 3.117162084579468,
+          "final_eval/mean_visual_dist": 0.3881074617346939,
+          "final_eval/success_rate": 0.9
+        },
+        "300": {
+          "final_eval/mean_div_proprio_emb": 4.71217260935582,
+          "final_eval/mean_div_visual_emb": 18.740475021395795,
+          "final_eval/mean_proprio_dist": 1.1053235054016113,
+          "final_eval/mean_state_dist": 3.3630438804626466,
+          "final_eval/mean_visual_dist": 0.41492307079081625,
+          "final_eval/success_rate": 0.94
+        }
+      },
+      "aggregate": {
+        "final_eval/mean_div_proprio_emb": {
+          "mean": 5.237254185749085,
+          "population_std": 0.3741563218175098
+        },
+        "final_eval/mean_div_visual_emb": {
+          "mean": 19.186048922758058,
+          "population_std": 1.0583962743809359
+        },
+        "final_eval/mean_proprio_dist": {
+          "mean": 0.9578187386194865,
+          "population_std": 0.14357186524148682
+        },
+        "final_eval/mean_state_dist": {
+          "mean": 2.934261385599772,
+          "population_std": 0.4440208040236926
+        },
+        "final_eval/mean_visual_dist": {
+          "mean": 0.3963066450538548,
+          "population_std": 0.013194908789784875
+        },
+        "final_eval/success_rate": {
+          "mean": 0.9333333333333332,
+          "population_std": 0.024944382578492914
+        }
+      }
+    },
+    "factorized": {
+      "status": "complete",
+      "seeds": [
+        100,
+        200,
+        300
+      ],
+      "n_seeds": 3,
+      "n_evals_per_seed": [
+        50,
+        50,
+        50
+      ],
+      "seed_summaries": [
+        "/home/jupyter-deuk-13ad/temporal-straightening/baseline_artifacts/plans/umaze_physics_layer_ablations/factorized/seed_100/aggregate.json",
+        "/home/jupyter-deuk-13ad/temporal-straightening/baseline_artifacts/plans/umaze_physics_layer_ablations/factorized/seed_200/aggregate.json",
+        "/home/jupyter-deuk-13ad/temporal-straightening/baseline_artifacts/plans/umaze_physics_layer_ablations/factorized/seed_300/aggregate.json"
+      ],
+      "per_seed": {
+        "100": {
+          "final_eval/mean_div_proprio_emb": 5.135516365510063,
+          "final_eval/mean_div_visual_emb": 23.19319802274568,
+          "final_eval/mean_proprio_dist": 1.0030095458030701,
+          "final_eval/mean_state_dist": 3.0135332107543946,
+          "final_eval/mean_visual_dist": 0.39034558354591836,
+          "final_eval/success_rate": 0.9
+        },
+        "200": {
+          "final_eval/mean_div_proprio_emb": 6.070811559082358,
+          "final_eval/mean_div_visual_emb": 25.428515149879118,
+          "final_eval/mean_proprio_dist": 1.0618497133255005,
+          "final_eval/mean_state_dist": 3.169037199020386,
+          "final_eval/mean_visual_dist": 0.40043672937925173,
+          "final_eval/success_rate": 0.88
+        },
+        "300": {
+          "final_eval/mean_div_proprio_emb": 6.68445823314215,
+          "final_eval/mean_div_visual_emb": 28.53678562662015,
+          "final_eval/mean_proprio_dist": 1.1399865865707397,
+          "final_eval/mean_state_dist": 3.379974699020386,
+          "final_eval/mean_visual_dist": 0.41985517644557824,
+          "final_eval/success_rate": 0.82
+        }
+      },
+      "aggregate": {
+        "final_eval/mean_div_proprio_emb": {
+          "mean": 5.963595385911524,
+          "population_std": 0.6368813118982968
+        },
+        "final_eval/mean_div_visual_emb": {
+          "mean": 25.719499599748318,
+          "population_std": 2.191192382033047
+        },
+        "final_eval/mean_proprio_dist": {
+          "mean": 1.0682819485664368,
+          "population_std": 0.05610530374223701
+        },
+        "final_eval/mean_state_dist": {
+          "mean": 3.1875150362650557,
+          "population_std": 0.15016860287152575
+        },
+        "final_eval/mean_visual_dist": {
+          "mean": 0.40354582979024944,
+          "population_std": 0.012246193893074526
+        },
+        "final_eval/success_rate": {
+          "mean": 0.8666666666666667,
+          "population_std": 0.03399346342395193
+        }
+      }
+    },
+    "layer_aware_factorized": {
+      "status": "complete",
+      "seeds": [
+        100,
+        200,
+        300
+      ],
+      "n_seeds": 3,
+      "n_evals_per_seed": [
+        50,
+        50,
+        50
+      ],
+      "seed_summaries": [
+        "/home/jupyter-deuk-13ad/temporal-straightening/baseline_artifacts/plans/umaze_physics_layer_ablations/layer_aware_factorized/seed_100/aggregate.json",
+        "/home/jupyter-deuk-13ad/temporal-straightening/baseline_artifacts/plans/umaze_physics_layer_ablations/layer_aware_factorized/seed_200/aggregate.json",
+        "/home/jupyter-deuk-13ad/temporal-straightening/baseline_artifacts/plans/umaze_physics_layer_ablations/layer_aware_factorized/seed_300/aggregate.json"
+      ],
+      "per_seed": {
+        "100": {
+          "final_eval/mean_div_proprio_emb": 8.599791029515165,
+          "final_eval/mean_div_visual_emb": 11.513258229613728,
+          "final_eval/mean_proprio_dist": 1.231782579421997,
+          "final_eval/mean_state_dist": 3.134279155731201,
+          "final_eval/mean_visual_dist": 0.5165785767431973,
+          "final_eval/success_rate": 0.28
+        },
+        "200": {
+          "final_eval/mean_div_proprio_emb": 9.045609668949712,
+          "final_eval/mean_div_visual_emb": 11.559619533518774,
+          "final_eval/mean_proprio_dist": 1.473573422431946,
+          "final_eval/mean_state_dist": 3.6332142829895018,
+          "final_eval/mean_visual_dist": 0.5375010629251702,
+          "final_eval/success_rate": 0.16
+        },
+        "300": {
+          "final_eval/mean_div_proprio_emb": 8.160987707402699,
+          "final_eval/mean_div_visual_emb": 11.49972198499202,
+          "final_eval/mean_proprio_dist": 1.4211806297302245,
+          "final_eval/mean_state_dist": 3.6154848098754884,
+          "final_eval/mean_visual_dist": 0.5083576477465988,
+          "final_eval/success_rate": 0.28
+        }
+      },
+      "aggregate": {
+        "final_eval/mean_div_proprio_emb": {
+          "mean": 8.602129468622525,
+          "population_std": 0.36114918887344016
+        },
+        "final_eval/mean_div_visual_emb": {
+          "mean": 11.524199916041505,
+          "population_std": 0.02564786484019809
+        },
+        "final_eval/mean_proprio_dist": {
+          "mean": 1.375512210528056,
+          "population_std": 0.10385857796441017
+        },
+        "final_eval/mean_state_dist": {
+          "mean": 3.460992749532064,
+          "population_std": 0.23113475555027987
+        },
+        "final_eval/mean_visual_dist": {
+          "mean": 0.520812429138322,
+          "population_std": 0.01226862642801888
+        },
+        "final_eval/success_rate": {
+          "mean": 0.24000000000000002,
+          "population_std": 0.05656854249492382
+        }
+      }
+    }
+  },
+  "paired_deltas": {
+    "r2": {
+      "treatment_minus_baseline": "r2-r0",
+      "metrics": {
+        "final_eval/mean_div_proprio_emb": {
+          "mean": 1.1909866385628172,
+          "population_std": 0.14718760715993556,
+          "standard_error": 0.08497880461516569
+        },
+        "final_eval/mean_div_visual_emb": {
+          "mean": -2.077316084849931,
+          "population_std": 0.32093782142856503,
+          "standard_error": 0.18529353759491407
+        },
+        "final_eval/mean_proprio_dist": {
+          "mean": 0.009384953975677512,
+          "population_std": 0.007638717844835346,
+          "standard_error": 0.004410215803979285
+        },
+        "final_eval/mean_state_dist": {
+          "mean": 0.03987929821014413,
+          "population_std": 0.0527122879679283,
+          "standard_error": 0.030433453647884474
+        },
+        "final_eval/mean_visual_dist": {
+          "mean": 0.00788247590702947,
+          "population_std": 0.0029628513493957518,
+          "standard_error": 0.0017106030241424834
+        },
+        "final_eval/success_rate": {
+          "mean": 0.01999999999999998,
+          "population_std": 0.016329931618554488,
+          "standard_error": 0.009428090415820616
+        }
+      }
+    },
+    "calibrated_speed": {
+      "treatment_minus_baseline": "calibrated_speed-r0",
+      "metrics": {
+        "final_eval/mean_div_proprio_emb": {
+          "mean": 0.35489558421185013,
+          "population_std": 1.1242462438439391,
+          "standard_error": 0.6490838715187239
+        },
+        "final_eval/mean_div_visual_emb": {
+          "mean": -0.3336145088984388,
+          "population_std": 1.3501088966709625,
+          "standard_error": 0.7794857349282889
+        },
+        "final_eval/mean_proprio_dist": {
+          "mean": 0.00574844280878702,
+          "population_std": 0.06042052444153026,
+          "standard_error": 0.03488380605089586
+        },
+        "final_eval/mean_state_dist": {
+          "mean": 0.05262389183044439,
+          "population_std": 0.1906598402837314,
+          "standard_error": 0.11007751011146338
+        },
+        "final_eval/mean_visual_dist": {
+          "mean": 0.005794846584467088,
+          "population_std": 0.006715938607921756,
+          "standard_error": 0.0038774489631446265
+        },
+        "final_eval/success_rate": {
+          "mean": 0.013333333333333308,
+          "population_std": 0.04714045207910316,
+          "standard_error": 0.027216552697590865
+        }
+      }
+    },
+    "factorized": {
+      "treatment_minus_baseline": "factorized-r0",
+      "metrics": {
+        "final_eval/mean_div_proprio_emb": {
+          "mean": 1.0812367843742894,
+          "population_std": 0.31858484773987267,
+          "standard_error": 0.18393504760235144
+        },
+        "final_eval/mean_div_visual_emb": {
+          "mean": 6.199836168091821,
+          "population_std": 1.448207259914926,
+          "standard_error": 0.8361228513542529
+        },
+        "final_eval/mean_proprio_dist": {
+          "mean": 0.1162116527557373,
+          "population_std": 0.038021876162601595,
+          "standard_error": 0.021951940437572648
+        },
+        "final_eval/mean_state_dist": {
+          "mean": 0.30587754249572763,
+          "population_std": 0.11919916299776852,
+          "standard_error": 0.06881966884393974
+        },
+        "final_eval/mean_visual_dist": {
+          "mean": 0.013034031320861672,
+          "population_std": 0.008062039617408874,
+          "standard_error": 0.004654620743328441
+        },
+        "final_eval/success_rate": {
+          "mean": -0.053333333333333344,
+          "population_std": 0.018856180831641232,
+          "standard_error": 0.010886621079036327
+        }
+      }
+    },
+    "layer_aware_factorized": {
+      "treatment_minus_baseline": "layer_aware_factorized-r0",
+      "metrics": {
+        "final_eval/mean_div_proprio_emb": {
+          "mean": 3.719770867085291,
+          "population_std": 1.058315889944221,
+          "standard_error": 0.6110189639469544
+        },
+        "final_eval/mean_div_visual_emb": {
+          "mean": -7.995463515614989,
+          "population_std": 0.7788367740851231,
+          "standard_error": 0.4496616211728256
+        },
+        "final_eval/mean_proprio_dist": {
+          "mean": 0.4234419147173563,
+          "population_std": 0.07731283371881323,
+          "standard_error": 0.044636585359369596
+        },
+        "final_eval/mean_state_dist": {
+          "mean": 0.5793552557627359,
+          "population_std": 0.09742810319344727,
+          "standard_error": 0.05625014160537142
+        },
+        "final_eval/mean_visual_dist": {
+          "mean": 0.1303006306689343,
+          "population_std": 0.020091683737884496,
+          "standard_error": 0.01159993901454044
+        },
+        "final_eval/success_rate": {
+          "mean": -0.68,
+          "population_std": 0.07483314773547885,
+          "standard_error": 0.043204937989385746
+        }
+      }
+    }
+  }
+}
