@@ -95,6 +95,22 @@ def append(store, key, value):
     store.setdefault(key, []).append(value.detach().float().cpu())
 
 
+def encode_stream(module, values, name):
+    """Encode a stream, explicitly adapting legacy checkpoint input mismatch."""
+    expected = int(module.patch_embed.in_channels)
+    actual = int(values.shape[-1])
+    if expected != actual:
+        if actual > expected:
+            raise ValueError(f"{name} has {actual} channels but checkpoint expects {expected}")
+        print(
+            f"WARNING: legacy {name} encoder expects {expected} channels but data has "
+            f"{actual}; zero-padding for predictor activation probes",
+            flush=True,
+        )
+        values = F.pad(values, (0, expected - actual))
+    return module(values)
+
+
 def collect_activations(modules, dataset, choices, batch_size, frameskip, nframes, device):
     encoder = modules["encoder"]
     predictor = modules["predictor"]
@@ -156,8 +172,12 @@ def collect_activations(modules, dataset, choices, batch_size, frameskip, nframe
             # Predictor activations use the exact final encoder representation
             # and normalized action/proprio streams used during training.
             visual_tokens = encoder(flat).reshape(b, t, -1, visual_dim)
-            prop_emb = modules["proprio_encoder"](proprio.to(device))
-            act_emb = modules["action_encoder"](action.to(device))
+            prop_emb = encode_stream(
+                modules["proprio_encoder"], proprio.to(device), "proprio"
+            )
+            act_emb = encode_stream(
+                modules["action_encoder"], action.to(device), "action"
+            )
             prop_tiled = prop_emb.unsqueeze(2).expand(-1, -1, visual_tokens.shape[2], -1)
             act_tiled = act_emb.unsqueeze(2).expand(-1, -1, visual_tokens.shape[2], -1)
             z = torch.cat([visual_tokens, prop_tiled, act_tiled], dim=-1)
