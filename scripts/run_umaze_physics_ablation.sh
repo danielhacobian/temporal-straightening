@@ -9,8 +9,10 @@ OUT_ROOT="${OUT_ROOT:-$REPO_DIR/baseline_artifacts/checkpoints/umaze_physics_lay
 ANALYSIS_ROOT="${ANALYSIS_ROOT:-$REPO_DIR/baseline_artifacts/analysis/umaze_physics_layer_ablations}"
 LOG_DIR="$REPO_DIR/baseline_artifacts/logs"
 STATUS="$LOG_DIR/umaze_physics_ablation.status"
-PYTHON="${PYTHON:-$HOME/miniconda3/envs/ts310/bin/python}"
-ACCELERATE="${ACCELERATE:-$HOME/miniconda3/envs/ts310/bin/accelerate}"
+ENV_PREFIX="${ENV_PREFIX:-$HOME/.conda/envs/ts310}"
+[[ -x "$ENV_PREFIX/bin/python" ]] || ENV_PREFIX="$HOME/miniconda3/envs/ts310"
+PYTHON="${PYTHON:-$ENV_PREFIX/bin/python}"
+ACCELERATE="${ACCELERATE:-$ENV_PREFIX/bin/accelerate}"
 TARGET_EPOCHS="${TARGET_EPOCHS:-20}"
 R2_PREFIX="${R2_PREFIX:-s3://temporal-straightening/umaze_physics_layer_ablations}"
 R2_ENDPOINT="${R2_ENDPOINT:-https://2914c19ff6db6db0ee4a54ff30e02f9c.r2.cloudflarestorage.com}"
@@ -22,7 +24,7 @@ export PYTHONPATH="$REPO_DIR${PYTHONPATH:+:$PYTHONPATH}"
 export WANDB_MODE="${WANDB_MODE:-disabled}"
 export MUJOCO_GL="${MUJOCO_GL:-osmesa}"
 export MUJOCO_PY_FORCE_CPU="${MUJOCO_PY_FORCE_CPU:-1}"
-export LD_LIBRARY_PATH="$HOME/miniconda3/envs/ts310/lib:${LD_LIBRARY_PATH:-}:$HOME/.mujoco/mujoco210/bin:/usr/lib/nvidia"
+export LD_LIBRARY_PATH="$ENV_PREFIX/lib:${LD_LIBRARY_PATH:-}:$HOME/.mujoco/mujoco210/bin:/usr/lib/nvidia"
 
 status() { echo "$(date -Is) $*" | tee -a "$STATUS"; }
 
