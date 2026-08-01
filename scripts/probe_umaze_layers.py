@@ -18,6 +18,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from scipy.stats import rankdata, spearmanr
 
 from datasets.img_transforms import default_transform
@@ -100,6 +101,12 @@ def collect_activations(modules, dataset, choices, batch_size, frameskip, nframe
     representations = {}
     all_states, all_actions = [], []
     visual_dim = int(encoder.emb_dim)
+    if hasattr(encoder, "agg_mlp"):
+        token_count = int(encoder.agg_mlp[0].in_features // visual_dim)
+        token_side = int(round(math.sqrt(token_count)))
+        encoder_input_size = token_side * int(encoder.patch_size)
+    else:
+        encoder_input_size = 224
 
     with torch.inference_mode():
         for start in range(0, len(choices), batch_size):
@@ -110,6 +117,13 @@ def collect_activations(modules, dataset, choices, batch_size, frameskip, nframe
             b, t = visual.shape[:2]
             visual = visual.to(device)
             flat = visual.reshape(b * t, *visual.shape[2:])
+            if flat.shape[-2:] != (encoder_input_size, encoder_input_size):
+                flat = F.interpolate(
+                    flat,
+                    size=(encoder_input_size, encoder_input_size),
+                    mode="bilinear",
+                    align_corners=False,
+                )
             layer_outputs = encoder.forward_intermediates(flat)
             for output in layer_outputs:
                 layer = output["layer"]
