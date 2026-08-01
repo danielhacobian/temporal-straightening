@@ -24,6 +24,8 @@ export PYTHONPATH="$REPO_DIR${PYTHONPATH:+:$PYTHONPATH}"
 export DATASET_DIR
 export WANDB_MODE=disabled MUJOCO_GL=osmesa MUJOCO_PY_FORCE_CPU=1
 export LD_LIBRARY_PATH="$ENV_PREFIX/lib:${LD_LIBRARY_PATH:-}:$HOME/.mujoco/mujoco210/bin:/usr/lib/nvidia"
+USE_FRAME_FILES=false
+[[ -s "$DATASET_DIR/point_maze/obses/episode_000_frame_000.pth" ]] && USE_FRAME_FILES=true
 
 status() { echo "$(date -Is) $*" | tee -a "$STATUS"; }
 condition_dir() {
@@ -46,6 +48,7 @@ run_job() {
   CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON" plan.py --config-name plan_gd.yaml \
     "ckpt_base_path=$(condition_dir "$condition")" \
     "model_name=$condition" model_epoch=20 n_evals=10 \
+    "env.dataset.use_frame_files=$USE_FRAME_FILES" \
     +wandb_logging=false "seed=$seed" "+eval_start_index=$offset" \
     "hydra.run.dir=$out" > "$out/runner.log" 2>&1
   status "PLAN_END gpu=$gpu condition=$condition seed=$seed offset=$offset"
