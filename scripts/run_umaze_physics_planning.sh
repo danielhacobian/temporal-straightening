@@ -21,6 +21,7 @@ offsets=(0 10 20 30 40)
 mkdir -p "$OUTPUT_ROOT" "$(dirname "$STATUS")"
 cd "$REPO_DIR"
 export PYTHONPATH="$REPO_DIR${PYTHONPATH:+:$PYTHONPATH}"
+export DATASET_DIR
 export WANDB_MODE=disabled MUJOCO_GL=osmesa MUJOCO_PY_FORCE_CPU=1
 export LD_LIBRARY_PATH="$ENV_PREFIX/lib:${LD_LIBRARY_PATH:-}:$HOME/.mujoco/mujoco210/bin:/usr/lib/nvidia"
 
