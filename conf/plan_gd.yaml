@@ -25,6 +25,7 @@ ckpt_base_path: ./checkpoints # model to load for planning
 model_name: null
 model_epoch: latest
 model_dataset_use_frame_files: null  # optional override for the loaded training dataset config
+model_dataset_data_path: null  # optional override when a checkpoint moves between hosts
 
 seed: 100
 n_evals: 50
