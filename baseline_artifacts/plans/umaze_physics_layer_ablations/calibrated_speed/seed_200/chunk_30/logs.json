@@ -1,0 +1,2 @@
+{"mpc/success_rate": 0.9, "mpc/mean_state_dist": 2.8007164001464844, "mpc/mean_visual_dist": 0.38644571109693876, "mpc/mean_proprio_dist": 0.9096285104751587, "mpc/mean_div_visual_emb": 8.330163955688477, "mpc/mean_div_proprio_emb": 1.4812864065170288, "step": 1}
+{"final_eval/success_rate": 0.9, "final_eval/mean_state_dist": 2.8007164001464844, "final_eval/mean_visual_dist": 0.38644571109693876, "final_eval/mean_proprio_dist": 0.9096285104751587, "final_eval/mean_div_visual_emb": 8.330163955688477, "final_eval/mean_div_proprio_emb": 1.4812864065170288}

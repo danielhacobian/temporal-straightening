@@ -90,15 +90,19 @@ class Transformer(nn.Module):
                 FeedForward(dim, mlp_dim, dropout = dropout)
             ]))
 
-    def forward(self, x):
+    def forward(self, x, return_intermediates=False):
+        intermediates = []
         for attn, ff in self.layers:
             x = attn(x) + x
             x = ff(x) + x
+            if return_intermediates:
+                intermediates.append(self.norm(x))
 
-        return self.norm(x)
+        output = self.norm(x)
+        return (output, intermediates) if return_intermediates else output
     
 class ViTPredictor(nn.Module):
-    def __init__(self, *, num_patches, num_frames, dim, depth, heads, mlp_dim, pool='cls', dim_head=64, dropout=0., emb_dropout=0.):
+    def __init__(self, *, num_patches, num_frames, dim, depth, heads, mlp_dim, pool='cls', dim_head=64, dropout=0., emb_dropout=0., motion_input_dim=None, direction_projection_dim=0, speed_projection_dim=0):
         super().__init__()
         assert pool in {'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
         
@@ -111,10 +115,18 @@ class ViTPredictor(nn.Module):
         self.dropout = nn.Dropout(emb_dropout)
         self.transformer = Transformer(dim, depth, heads, dim_head, mlp_dim, dropout)
         self.pool = pool
+        motion_input_dim = dim if motion_input_dim is None else int(motion_input_dim)
+        self.direction_projection = (
+            nn.Linear(motion_input_dim, int(direction_projection_dim), bias=False)
+            if int(direction_projection_dim) > 0 else None
+        )
+        self.speed_projection = (
+            nn.Linear(motion_input_dim, int(speed_projection_dim), bias=False)
+            if int(speed_projection_dim) > 0 else None
+        )
 
-    def forward(self, x): # x: (b, window_size * H/patch_size * W/patch_size, 384)
+    def forward(self, x, return_intermediates=False): # x: (b, window_size * H/patch_size * W/patch_size, 384)
         b, n, _ = x.shape
         x = x + self.pos_embedding[:, :n]
         x = self.dropout(x) 
-        x = self.transformer(x) 
-        return x
+        return self.transformer(x, return_intermediates=return_intermediates)

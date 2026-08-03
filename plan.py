@@ -471,6 +471,14 @@ def planning_main(cfg_dict):
     model_path = os.path.abspath(model_path)
     with open(os.path.join(model_path, "hydra.yaml"), "r") as f:
         model_cfg = OmegaConf.load(f)
+    use_frame_files = cfg_dict.get("model_dataset_use_frame_files")
+    if use_frame_files is not None:
+        with open_dict(model_cfg):
+            model_cfg.env.dataset.use_frame_files = bool(use_frame_files)
+    dataset_data_path = cfg_dict.get("model_dataset_data_path")
+    if dataset_data_path is not None:
+        with open_dict(model_cfg):
+            model_cfg.env.dataset.data_path = dataset_data_path
     
     seed(cfg_dict["seed"])
     _, dset = hydra.utils.call(

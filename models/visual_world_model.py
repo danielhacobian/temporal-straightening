@@ -32,6 +32,10 @@ class VWorldModel(nn.Module):
         vcreg_std_coeff=0,
         vcreg_cov_coeff=0,
         vcreg_apply_to="enc",
+        motion_regularizer="none",
+        motion_regularizer_scale=0.1,
+        speed_calibration_scale=0.1,
+        regularizer_predictor_layer=None,
         **kwargs,
     ):
         super().__init__()
@@ -63,6 +67,19 @@ class VWorldModel(nn.Module):
         self.vcreg = bool(vcreg)
         self.std_coeff = float(vcreg_std_coeff)
         self.cov_coeff = float(vcreg_cov_coeff)
+        self.motion_regularizer = str(motion_regularizer).lower()
+        self.motion_regularizer_scale = float(motion_regularizer_scale)
+        self.speed_calibration_scale = float(speed_calibration_scale)
+        self.regularizer_predictor_layer = (
+            None if regularizer_predictor_layer is None
+            else int(regularizer_predictor_layer)
+        )
+        valid_motion_regularizers = {"none", "calibrated_speed", "factorized", "layer_aware_factorized"}
+        if self.motion_regularizer not in valid_motion_regularizers:
+            raise ValueError(
+                f"Unknown motion_regularizer '{motion_regularizer}'. Expected one of "
+                f"{sorted(valid_motion_regularizers)}."
+            )
         if vcreg_apply_to != "enc":
             raise ValueError(
                 f"Only encoder VCReg is supported, got vcreg_apply_to='{vcreg_apply_to}'."
@@ -160,6 +177,13 @@ class VWorldModel(nn.Module):
             self.std_coeff,
             self.cov_coeff,
         )
+        log.info(
+            "Motion regularizer: mode=%s direction_scale=%s speed_scale=%s predictor_layer=%s",
+            self.motion_regularizer,
+            self.motion_regularizer_scale,
+            self.speed_calibration_scale,
+            self.regularizer_predictor_layer,
+        )
 
         self.concat_dim = concat_dim # 0 or 1
         assert concat_dim == 0 or concat_dim == 1, f"concat_dim {concat_dim} not supported."
@@ -246,7 +270,7 @@ class VWorldModel(nn.Module):
         proprio_emb = self.encode_proprio(proprio)
         return {"visual": visual_embs, "proprio": proprio_emb}
 
-    def predict(self, z):  # in embedding space
+    def predict(self, z, return_intermediates=False):  # in embedding space
         """
         input : z: (b, num_hist, num_patches, emb_dim)
         output: z: (b, num_hist, num_patches, emb_dim)
@@ -255,9 +279,16 @@ class VWorldModel(nn.Module):
         # reshape to a batch of windows of inputs
         z = rearrange(z, "b t p d -> b (t p) d")
         # (b, num_hist * num_patches per img, emb_dim)
-        z = self.predictor(z)
+        output = self.predictor(z, return_intermediates=return_intermediates)
+        if not return_intermediates:
+            return rearrange(output, "b (t p) d -> b t p d", t=T)
+        z, intermediates = output
         z = rearrange(z, "b (t p) d -> b t p d", t=T)
-        return z
+        intermediates = [
+            rearrange(item, "b (t p) d -> b t p d", t=T)
+            for item in intermediates
+        ]
+        return z, intermediates
 
     def decode(self, z):
         """
@@ -448,7 +479,58 @@ class VWorldModel(nn.Module):
             "R4": average(r4),
         }
 
-    def forward(self, obs, act):
+    def _aggregate_visual(self, features):
+        """Pool visual tokens into one vector per frame."""
+        if features.ndim == 3:
+            return features
+        b, t, p, d = features.shape
+        encoder = getattr(self.encoder, "module", self.encoder)
+        if hasattr(encoder, "agg"):
+            return encoder.agg(features.reshape(b * t, p, d)).reshape(b, t, -1)
+        return features.mean(dim=2)
+
+    def calibrated_speed_loss(self, features, state, eps=1e-6):
+        """Match changes in latent pace to true XY displacement up to one scale.
+
+        Centering the log-ratio removes the arbitrary unit conversion between
+        pixels/latents and environment coordinates.  The loss therefore asks
+        equal physical displacements to have equal latent lengths without
+        assuming what one meter should measure in latent space.
+        """
+        if state is None:
+            raise ValueError("calibrated speed regularization requires true state")
+        features = self._aggregate_visual(features)
+        latent_speed = (features[:, 1:] - features[:, :-1]).norm(dim=-1)
+        physical_speed = (state[:, 1:, :2] - state[:, :-1, :2]).norm(dim=-1)
+        valid = physical_speed > eps
+        if not bool(valid.any()):
+            return latent_speed.sum() * 0.0
+        log_ratio = torch.log(latent_speed.clamp_min(eps)) - torch.log(
+            physical_speed.clamp_min(eps)
+        )
+        centered = log_ratio[valid] - log_ratio[valid].mean().detach()
+        return F.smooth_l1_loss(centered, torch.zeros_like(centered))
+
+    def factorized_motion_losses(self, features, state):
+        """Apply direction and calibrated-speed losses in disjoint subspaces."""
+        predictor = getattr(self.predictor, "module", self.predictor)
+        if (
+            getattr(predictor, "direction_projection", None) is None
+            or getattr(predictor, "speed_projection", None) is None
+        ):
+            raise ValueError(
+                "factorized regularization requires predictor direction_projection "
+                "and speed_projection modules"
+            )
+        visual_dim = getattr(getattr(self.encoder, "module", self.encoder), "emb_dim")
+        visual = features[..., :visual_dim]
+        direction = predictor.direction_projection(visual).mean(dim=2)
+        speed = predictor.speed_projection(visual).mean(dim=2)
+        direction_loss = self.trajectory_penalties(direction)["R0"]
+        speed_loss = self.calibrated_speed_loss(speed, state)
+        return direction_loss, speed_loss
+
+    def forward(self, obs, act, state=None):
         """
         input:  obs (dict):  "visual", "proprio" (b, num_frames, 3, img_size, img_size)
                 act: (b, num_frames, action_dim)
@@ -465,8 +547,14 @@ class VWorldModel(nn.Module):
         visual_src = obs['visual'][:, : self.num_hist, ...]  # (b, num_hist, 3, img_size, img_size)
         visual_tgt = obs['visual'][:, self.num_pred :, ...]  # (b, num_hist, 3, img_size, img_size)
 
+        predictor_intermediates = None
         if self.predictor is not None:
-            z_pred = self.predict(z_src)
+            if self.motion_regularizer == "layer_aware_factorized":
+                z_pred, predictor_intermediates = self.predict(
+                    z_src, return_intermediates=True
+                )
+            else:
+                z_pred = self.predict(z_src)
             if decoder_enabled:
                 obs_pred, diff_pred = self.decode(
                     z_pred.detach()
@@ -547,6 +635,49 @@ class VWorldModel(nn.Module):
                 loss_components["trajectory_penalty_used_for_training"] = (
                     selected_penalty
                 )
+
+            if self.motion_regularizer == "calibrated_speed":
+                feats = self.visual_only(z)
+                direction_loss = self.trajectory_penalties(
+                    feats, aggregate=True
+                )["R0"]
+                speed_loss = self.calibrated_speed_loss(feats, state)
+                loss = (
+                    loss
+                    + self.motion_regularizer_scale * direction_loss
+                    + self.speed_calibration_scale * speed_loss
+                )
+                loss_components["motion_direction_loss"] = direction_loss
+                loss_components["motion_speed_calibration_loss"] = speed_loss
+            elif self.motion_regularizer in {"factorized", "layer_aware_factorized"}:
+                if self.motion_regularizer == "layer_aware_factorized":
+                    layer = self.regularizer_predictor_layer
+                    if layer is None:
+                        raise ValueError(
+                            "layer_aware_factorized requires regularizer_predictor_layer"
+                        )
+                    if layer < 0:
+                        layer += len(predictor_intermediates)
+                    if not 0 <= layer < len(predictor_intermediates):
+                        raise ValueError(
+                            f"predictor layer {layer} is outside [0, "
+                            f"{len(predictor_intermediates) - 1}]"
+                        )
+                    motion_features = predictor_intermediates[layer]
+                    motion_state = state[:, : self.num_hist] if state is not None else None
+                else:
+                    motion_features = self.visual_only(z)
+                    motion_state = state
+                direction_loss, speed_loss = self.factorized_motion_losses(
+                    motion_features, motion_state
+                )
+                loss = (
+                    loss
+                    + self.motion_regularizer_scale * direction_loss
+                    + self.speed_calibration_scale * speed_loss
+                )
+                loss_components["motion_direction_loss"] = direction_loss
+                loss_components["motion_speed_calibration_loss"] = speed_loss
         else:
             visual_pred = None
             z_pred = None

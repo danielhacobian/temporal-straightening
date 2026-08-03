@@ -1,0 +1,394 @@
+Loaded 2000 rollouts
+loading r0: /home/jupyter-deuk-13ad/temporal-straightening/baseline_artifacts/checkpoints/umaze_q1_retrain/r0_direction_only/checkpoints/model_20.pth
+Using cache found in /home/jupyter-deuk-13ad/.cache/torch/hub/facebookresearch_dinov2_81b2b6419385
+/home/jupyter-deuk-13ad/.cache/torch/hub/facebookresearch_dinov2_81b2b6419385/dinov2/layers/swiglu_ffn.py:51: UserWarning: xFormers is not available (SwiGLU)
+  warnings.warn("xFormers is not available (SwiGLU)")
+/home/jupyter-deuk-13ad/.cache/torch/hub/facebookresearch_dinov2_81b2b6419385/dinov2/layers/attention.py:33: UserWarning: xFormers is not available (Attention)
+  warnings.warn("xFormers is not available (Attention)")
+/home/jupyter-deuk-13ad/.cache/torch/hub/facebookresearch_dinov2_81b2b6419385/dinov2/layers/block.py:40: UserWarning: xFormers is not available (Block)
+  warnings.warn("xFormers is not available (Block)")
+Unknown projector 'none' for patch tokens; proceeding without projector.
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+r0 dino/0/pooled_patches -0.22477040169519347 -0.06657129244874183
+r0 dino/1/pooled_patches -0.1883540667684087 -0.12207019206742187
+r0 dino/10/pooled_patches -0.10880110701359302 -0.016484368835242513
+r0 dino/11/pooled_patches -0.11460011468076559 -0.0015327774243043546
+r0 dino/2/pooled_patches -0.18546637833824953 -0.07813684862533465
+r0 dino/3/pooled_patches -0.18849111000117347 -0.03705897868340968
+r0 dino/4/pooled_patches -0.1995156219129992 -0.043241872753519095
+r0 dino/5/pooled_patches -0.14738128591750077 -0.025801173981956138
+r0 dino/6/cls -0.13407718733308993 0.007655198090386728
+r0 dino/6/individual_patches -0.1729745850989184 -0.0414324983193064
+r0 dino/6/pooled_patches -0.1729722714693791 -0.04143336167553091
+r0 dino/6/projected_aggregate -0.029553894925961277 0.07807750114805201
+r0 dino/6/projected_patches -0.022360222652507922 0.03123435474039582
+r0 dino/7/pooled_patches -0.12269492117610281 -0.050670421855989245
+r0 dino/8/pooled_patches -0.14203528163582257 -0.002144306784058303
+r0 dino/9/pooled_patches -0.12485731046271087 -0.034311250565719265
+r0 predictor/0/pooled_visual 0.06566191569207658 0.10317088427959631
+r0 predictor/1/individual_visual_tokens 0.107546696302112 0.053062585058204825
+r0 predictor/1/pooled_visual 0.10754681860974691 0.05306238272641117
+r0 predictor/2/pooled_visual 0.11350036727801027 0.024725923175525577
+r0 predictor/3/pooled_visual 0.1920721925166906 0.058710316731963474
+r0 predictor/4/pooled_visual 0.2200222222602467 0.03327131160612218
+r0 predictor/5/pooled_visual 0.13198220775167446 0.037540208942475894
+loading r2: /home/jupyter-deuk-13ad/temporal-straightening/baseline_artifacts/checkpoints/umaze_q1_retrain/r2_full_matched/checkpoints/model_20.pth
+Using cache found in /home/jupyter-deuk-13ad/.cache/torch/hub/facebookresearch_dinov2_81b2b6419385
+Unknown projector 'none' for patch tokens; proceeding without projector.
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+r2 dino/6/cls -0.13407718733308993 0.007655198090386728
+r2 dino/6/individual_patches -0.1729745850989184 -0.0414324983193064
+r2 dino/6/pooled_patches -0.1729722714693791 -0.04143336167553091
+r2 dino/6/projected_aggregate -0.06596610580585427 0.060186062532228135
+r2 dino/6/projected_patches -0.007229442944363118 0.016770907530144874
+r2 predictor/1/individual_visual_tokens 0.2498507133995802 0.10700897036354862
+r2 predictor/1/pooled_visual 0.24985032172541088 0.10700871439322057
+loading calibrated_speed: /home/jupyter-deuk-13ad/temporal-straightening/baseline_artifacts/checkpoints/umaze_physics_layer_ablations/calibrated_speed/checkpoints/model_20.pth
+Using cache found in /home/jupyter-deuk-13ad/.cache/torch/hub/facebookresearch_dinov2_81b2b6419385
+Unknown projector 'none' for patch tokens; proceeding without projector.
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+calibrated_speed dino/6/cls -0.13407718733308993 0.007655198090386728
+calibrated_speed dino/6/individual_patches -0.1729745850989184 -0.0414324983193064
+calibrated_speed dino/6/pooled_patches -0.1729722714693791 -0.04143336167553091
+calibrated_speed dino/6/projected_aggregate -0.025641872775638008 0.06927253994473359
+calibrated_speed dino/6/projected_patches -0.01959522809203329 0.035449394624061936
+calibrated_speed predictor/1/individual_visual_tokens 0.1761145583025855 0.062379185077781174
+calibrated_speed predictor/1/pooled_visual 0.17611501915898686 0.06237927787301423
+loading factorized: /home/jupyter-deuk-13ad/temporal-straightening/baseline_artifacts/checkpoints/umaze_physics_layer_ablations/factorized/checkpoints/model_20.pth
+Using cache found in /home/jupyter-deuk-13ad/.cache/torch/hub/facebookresearch_dinov2_81b2b6419385
+Unknown projector 'none' for patch tokens; proceeding without projector.
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+factorized dino/6/cls -0.13407718733308993 0.007655198090386728
+factorized dino/6/individual_patches -0.1729745850989184 -0.0414324983193064
+factorized dino/6/pooled_patches -0.1729722714693791 -0.04143336167553091
+factorized dino/6/projected_aggregate -0.05938525151164642 0.07952895910050128
+factorized dino/6/projected_patches -0.012165053910306423 0.07479697885978087
+factorized predictor/1/individual_visual_tokens 0.2330623720331385 0.16270347814980546
+factorized predictor/1/pooled_visual 0.23306243039421193 0.16270354345450888
+loading layer_aware_factorized: /home/jupyter-deuk-13ad/temporal-straightening/baseline_artifacts/checkpoints/umaze_physics_layer_ablations/layer_aware_factorized/checkpoints/model_20.pth
+Using cache found in /home/jupyter-deuk-13ad/.cache/torch/hub/facebookresearch_dinov2_81b2b6419385
+Unknown projector 'none' for patch tokens; proceeding without projector.
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+WARNING: legacy action encoder expects 10 channels but data has 2; zero-padding for predictor activation probes
+layer_aware_factorized dino/6/cls -0.13407718733308993 0.007655198090386728
+layer_aware_factorized dino/6/individual_patches -0.1729745850989184 -0.0414324983193064
+layer_aware_factorized dino/6/pooled_patches -0.1729722714693791 -0.04143336167553091
+layer_aware_factorized dino/6/projected_aggregate -0.06831140938848357 0.04075511310649482
+layer_aware_factorized dino/6/projected_patches -0.016172939402751885 0.03005888281545621
+layer_aware_factorized predictor/1/individual_visual_tokens 0.28995128035501694 0.008993947617322529
+layer_aware_factorized predictor/1/pooled_visual 0.28995162980849387 0.008993994650307258
+wrote /home/jupyter-deuk-13ad/temporal-straightening/baseline_artifacts/analysis/umaze_physics_layer_ablations/motion_geometry_probes
