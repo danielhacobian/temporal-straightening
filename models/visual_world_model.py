@@ -496,6 +496,11 @@ class VWorldModel(nn.Module):
         pixels/latents and environment coordinates.  The loss therefore asks
         equal physical displacements to have equal latent lengths without
         assuming what one meter should measure in latent space.
+
+        The average log-ratio is computed across every valid step in the whole
+        minibatch (all sampled windows and timesteps), not once per window.
+        Numerical epsilon is 1e-6, and ``smooth_l1_loss`` uses its unchanged
+        default beta=1.0 (the Huber transition/delta).
         """
         if state is None:
             raise ValueError("calibrated speed regularization requires true state")
@@ -508,6 +513,7 @@ class VWorldModel(nn.Module):
         log_ratio = torch.log(latent_speed.clamp_min(eps)) - torch.log(
             physical_speed.clamp_min(eps)
         )
+        # This is one batch-wide average over valid steps, not a per-window mean.
         centered = log_ratio[valid] - log_ratio[valid].mean().detach()
         return F.smooth_l1_loss(centered, torch.zeros_like(centered))
 
