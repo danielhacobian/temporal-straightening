@@ -23,7 +23,7 @@ def code(source):
 
 CELLS = [
     markdown(
-        """# Where does UMaze physics become readable?
+        r"""# Where does UMaze physics become readable?
 
 This notebook reproduces and strengthens the repository's UMaze linear-probe methodology. It asks where **position**, **velocity**, and **acceleration** become linearly readable across DINO and predictor layers.
 
@@ -35,7 +35,7 @@ The key distinction is temporal context:
 “Readable” means a frozen representation supports a held-out ridge-linear decoder. It does **not** prove the planner causally uses that variable."""
     ),
     markdown(
-        """## Experimental design
+        r"""## Experimental design
 
 For a layer representation $h_t^\ell$:
 
@@ -352,7 +352,7 @@ show_rows(control_view, [
 ], 20)"""
     ),
     markdown(
-        """## 7. Cartesian versus polar motion
+        r"""## 7. Cartesian versus polar motion
 
 Velocity is also probed as speed plus heading $(\cos\\theta,\sin\\theta)$. Acceleration is decomposed the same way. Direction metrics exclude the slowest 10% of samples, where angle is poorly defined."""
     ),
@@ -427,7 +427,7 @@ write_rows(OUTPUT_DIR / "readability_onsets.csv", onsets)
 show_rows(sorted(onsets, key=lambda row: (row["variable"], row["family"], row["kind"])))"""
     ),
     markdown(
-        """## 9. Interpretation checklist
+        r"""## 9. Interpretation checklist
 
 Use these rules when writing the result:
 
