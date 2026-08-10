@@ -1,5 +1,24 @@
 # UMaze probe walkthrough
 
+## Colab: credential-free walkthrough
+
+Open `umaze_layerwise_motion_probe_walkthrough.ipynb` through GitHub and choose
+**Run all**.  Its first code cell clones `codex/umaze-physics-probes` and
+downloads the checksummed `umaze-probe-colab-v1` activation cache from the
+repository's public GitHub release.  Collaborators do not need an R2 account,
+the 58 GB raw trajectory directory, or the 254 MB checkpoint for this default
+path.  The notebook still refits every ridge probe, reruns both held-out splits
+and controls, and regenerates all tables and figures.
+
+The public cache stores frozen R0 intermediate activations, physical states,
+actions, and deterministic window identifiers.  It does not contain raw
+trajectory images or credentials.
+
+To recompute the activations instead of using the public cache, set
+`UMAZE_FORCE_RECOMPUTE=1`, `UMAZE_CHECKPOINT`, and `UMAZE_DATA_DIR` before the
+setup cell.  Full recomputation is intentionally an advanced path because the
+source trajectory directory is too large for a normal Colab session.
+
 `umaze_layerwise_motion_probe_walkthrough.ipynb` is the executable,
 explanatory version of the UMaze layerwise physics probes. It compares where
 position, velocity, and acceleration become linearly readable in DINO and the
@@ -17,7 +36,7 @@ action/proprioception-conditioned predictor.
 - Cartesian and polar targets are shown layer by layer.
 - A conservative, explicit rule creates an emergence-layer summary.
 
-## Required inputs
+## Required inputs for full recomputation
 
 1. An epoch checkpoint containing `encoder`, `predictor`, `proprio_encoder`, and
    `action_encoder` modules.

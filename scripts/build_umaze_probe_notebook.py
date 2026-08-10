@@ -35,6 +35,76 @@ The key distinction is temporal context:
 “Readable” means a frozen representation supports a held-out ridge-linear decoder. It does **not** prove the planner causally uses that variable."""
     ),
     markdown(
+        r"""## One-click Colab setup
+
+The default Colab path is deliberately credential-free. It clones the exact probe branch and downloads a versioned activation cache produced from the R0 checkpoint and 128 deterministic UMaze windows. The cache contains frozen intermediate activations, states, actions, and window identifiers; the remaining cells refit every probe and regenerate every graph.
+
+This mode is the practical reproducible walkthrough: collaborators do not need the original 58 GB trajectory directory or an R2 key. To recompute activations from raw frames instead, set `UMAZE_FORCE_RECOMPUTE=1` and provide `UMAZE_CHECKPOINT` plus `UMAZE_DATA_DIR` before running this cell."""
+    ),
+    code(
+        """import hashlib, os, subprocess, sys, urllib.request
+from pathlib import Path
+
+REPO_URL = "https://github.com/danielhacobian/temporal-straightening.git"
+REPO_BRANCH = "codex/umaze-physics-probes"
+COLAB_REPO = Path("/content/temporal-straightening")
+ASSET_URL = "https://github.com/danielhacobian/temporal-straightening/releases/download/umaze-probe-colab-v1/activation_cache_pooled.npz"
+ASSET_SHA256 = "46e8863b2ef82ea79025a54e472b1357495999d224f4938fa541952df13ad598"
+
+try:
+    import google.colab  # type: ignore  # noqa: F401
+    IN_COLAB = True
+except ImportError:
+    IN_COLAB = False
+
+def sha256(path):
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for block in iter(lambda: handle.read(8 * 1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+if IN_COLAB:
+    if not (COLAB_REPO / ".git").exists():
+        subprocess.run([
+            "git", "clone", "--branch", REPO_BRANCH, "--single-branch",
+            REPO_URL, str(COLAB_REPO),
+        ], check=True)
+    os.chdir(COLAB_REPO)
+
+    force_recompute = os.environ.get("UMAZE_FORCE_RECOMPUTE", "0") == "1"
+    if force_recompute:
+        subprocess.run([
+            sys.executable, "-m", "pip", "install", "-q",
+            "decord", "einops", "omegaconf", "hydra-core",
+        ], check=True)
+    else:
+        asset_dir = Path("/content/umaze_probe_assets")
+        asset_dir.mkdir(parents=True, exist_ok=True)
+        cache_path = asset_dir / "activation_cache_pooled.npz"
+        if not cache_path.exists() or sha256(cache_path) != ASSET_SHA256:
+            temporary = cache_path.with_suffix(".download")
+            print(f"Downloading public probe cache to {cache_path} ...")
+            urllib.request.urlretrieve(ASSET_URL, temporary)
+            observed = sha256(temporary)
+            if observed != ASSET_SHA256:
+                temporary.unlink(missing_ok=True)
+                raise RuntimeError(
+                    f"Activation-cache checksum mismatch: {observed} != {ASSET_SHA256}"
+                )
+            temporary.replace(cache_path)
+        os.environ.setdefault("UMAZE_ACTIVATION_CACHE", str(cache_path))
+
+    os.environ.setdefault("UMAZE_PROBE_OUTPUT", "/content/umaze_probe_results")
+
+print({
+    "in_colab": IN_COLAB,
+    "repo": str(Path.cwd()),
+    "mode": "full_recompute" if os.environ.get("UMAZE_FORCE_RECOMPUTE") == "1" else "public_cache",
+    "cache": os.environ.get("UMAZE_ACTIVATION_CACHE"),
+})"""
+    ),
+    markdown(
         r"""## Experimental design
 
 For a layer representation $h_t^\ell$:
