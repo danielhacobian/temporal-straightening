@@ -111,7 +111,24 @@ def encode_stream(module, values, name):
     return module(values)
 
 
-def collect_activations(modules, dataset, choices, batch_size, frameskip, nframes, device):
+def collect_activations(
+    modules,
+    dataset,
+    choices,
+    batch_size,
+    frameskip,
+    nframes,
+    device,
+    include_kinds=None,
+):
+    """Collect intermediate representations for a set of trajectory windows.
+
+    ``include_kinds`` optionally limits collection to representation suffixes
+    such as ``{"cls", "pooled_patches", "projected_aggregate",
+    "pooled_visual"}``.  The default keeps the original all-representations
+    behavior.  The filter is useful for walkthroughs because retaining every
+    individual patch at every layer can require several gigabytes.
+    """
     encoder = modules["encoder"]
     predictor = modules["predictor"]
     representations = {}
@@ -123,6 +140,9 @@ def collect_activations(modules, dataset, choices, batch_size, frameskip, nframe
         encoder_input_size = token_side * int(encoder.patch_size)
     else:
         encoder_input_size = 224
+
+    def requested(kind):
+        return include_kinds is None or kind in include_kinds
 
     with torch.inference_mode():
         for start in range(0, len(choices), batch_size):
@@ -143,31 +163,36 @@ def collect_activations(modules, dataset, choices, batch_size, frameskip, nframe
             layer_outputs = encoder.forward_intermediates(flat)
             for output in layer_outputs:
                 layer = output["layer"]
-                append(representations, f"dino/{layer}/cls", output["cls"].reshape(b, t, -1))
-                append(
-                    representations,
-                    f"dino/{layer}/pooled_patches",
-                    output["pooled_patches"].reshape(b, t, -1),
-                )
-                append(
-                    representations,
-                    f"dino/{layer}/individual_patches",
-                    output["patches"].reshape(b, t, output["patches"].shape[1], -1),
-                )
+                if requested("cls"):
+                    append(representations, f"dino/{layer}/cls", output["cls"].reshape(b, t, -1))
+                if requested("pooled_patches"):
+                    append(
+                        representations,
+                        f"dino/{layer}/pooled_patches",
+                        output["pooled_patches"].reshape(b, t, -1),
+                    )
+                if requested("individual_patches"):
+                    append(
+                        representations,
+                        f"dino/{layer}/individual_patches",
+                        output["patches"].reshape(b, t, output["patches"].shape[1], -1),
+                    )
                 if "projected" in output:
                     projected = output["projected"]
                     if projected.ndim == 2:
                         projected = projected.unsqueeze(1)
-                    append(
-                        representations,
-                        f"dino/{layer}/projected_patches",
-                        projected.reshape(b, t, projected.shape[1], -1),
-                    )
-                    append(
-                        representations,
-                        f"dino/{layer}/projected_aggregate",
-                        output["aggregated"].reshape(b, t, -1),
-                    )
+                    if requested("projected_patches"):
+                        append(
+                            representations,
+                            f"dino/{layer}/projected_patches",
+                            projected.reshape(b, t, projected.shape[1], -1),
+                        )
+                    if requested("projected_aggregate"):
+                        append(
+                            representations,
+                            f"dino/{layer}/projected_aggregate",
+                            output["aggregated"].reshape(b, t, -1),
+                        )
 
             # Predictor activations use the exact final encoder representation
             # and normalized action/proprio streams used during training.
@@ -186,16 +211,18 @@ def collect_activations(modules, dataset, choices, batch_size, frameskip, nframe
             _, pred_layers = predictor(pred_input, return_intermediates=True)
             for layer, activation in enumerate(pred_layers):
                 activation = activation.reshape(b, hist, z.shape[2], -1)[..., :visual_dim]
-                append(
-                    representations,
-                    f"predictor/{layer}/pooled_visual",
-                    activation.mean(dim=2),
-                )
-                append(
-                    representations,
-                    f"predictor/{layer}/individual_visual_tokens",
-                    activation,
-                )
+                if requested("pooled_visual"):
+                    append(
+                        representations,
+                        f"predictor/{layer}/pooled_visual",
+                        activation.mean(dim=2),
+                    )
+                if requested("individual_visual_tokens"):
+                    append(
+                        representations,
+                        f"predictor/{layer}/individual_visual_tokens",
+                        activation,
+                    )
 
             all_states.append(state.float())
             all_actions.append(action.float())
