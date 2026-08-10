@@ -23,8 +23,7 @@ action/proprioception-conditioned predictor.
    `action_encoder` modules.
 2. The UMaze trajectory dataset with images, simulator states, actions, and
    episode boundaries.
-3. The repository `ts310` environment plus `pandas` and `seaborn` for notebook
-   tables and plots.
+3. The repository training environment with PyTorch, NumPy, and Matplotlib.
 
 Set paths before opening Jupyter if the defaults do not match the machine:
 

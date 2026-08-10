@@ -52,11 +52,9 @@ Every probe standardizes features using training statistics and fits ridge regre
     ),
     code(
         """from pathlib import Path
-import json, os, sys
+import csv, json, os, sys
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 
 ROOT = Path.cwd()
 if not (ROOT / "scripts").exists():
@@ -70,7 +68,35 @@ from scripts.umaze_probe_walkthrough import (
     save_activation_cache, shuffled_label_score, spatial_holdout_split,
 )
 
-sns.set_theme(style="whitegrid", context="notebook")
+plt.style.use("seaborn-v0_8-whitegrid")
+
+def write_rows(path, rows):
+    if not rows:
+        return
+    with Path(path).open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+        writer.writeheader(); writer.writerows(rows)
+
+def show_rows(rows, columns=None, limit=20):
+    rows = list(rows)[:limit]
+    if not rows:
+        print("(no rows)"); return
+    columns = columns or list(rows[0])
+    widths = {
+        key: min(42, max(len(key), *(len(f"{row.get(key, '')}") for row in rows)))
+        for key in columns
+    }
+    print(" | ".join(key.ljust(widths[key]) for key in columns))
+    print("-+-".join("-" * widths[key] for key in columns))
+    for row in rows:
+        print(" | ".join(f"{row.get(key, '')}"[:widths[key]].ljust(widths[key]) for key in columns))
+
+def grouped(rows, keys):
+    result = {}
+    for row in rows:
+        key = tuple(row[name] for name in keys)
+        result.setdefault(key, []).append(row)
+    return result
 SEED = 0
 RIDGE = 10.0
 MAX_WINDOWS = 512
@@ -128,12 +154,12 @@ else:
     save_activation_cache(CACHE, representations, states, actions, choices, cache_metadata)
     print(f"Saved pooled activation cache to {CACHE}")
 
-inventory = pd.DataFrame([
+inventory = [
     {"representation": name, "shape": str(value.shape), "size_mb": value.nbytes / 2**20}
     for name, value in sorted(representations.items())
-])
-display(inventory)
-print("Total cached representation memory (MB):", inventory.size_mb.sum())"""
+]
+show_rows(inventory)
+print("Total cached representation memory (MB):", sum(row["size_mb"] for row in inventory))"""
     ),
     markdown(
         """## 2. Construct physical targets and inspect shortcut risk
@@ -151,17 +177,20 @@ acceleration_magnitude = targets["acceleration_magnitude"].reshape(-1)
 fig, axes = plt.subplots(1, 3, figsize=(16, 4.5), constrained_layout=True)
 axes[0].scatter(position[:, 0], position[:, 1], c=speed, s=8, cmap="viridis")
 axes[0].set(title="UMaze coverage colored by speed", xlabel="x", ylabel="y", aspect="equal")
-sns.histplot(speed, bins=40, ax=axes[1]); axes[1].set_title("Speed distribution")
-sns.histplot(acceleration_magnitude[np.isfinite(acceleration_magnitude)], bins=40, ax=axes[2])
+axes[1].hist(speed, bins=40); axes[1].set_title("Speed distribution")
+axes[2].hist(acceleration_magnitude[np.isfinite(acceleration_magnitude)], bins=40)
 axes[2].set_title("Acceleration-magnitude distribution")
 fig.savefig(OUTPUT_DIR / "dataset_motion_overview.png", dpi=180)
 plt.show()
 
-spatial_table = pd.DataFrame({"x": position[:, 0], "y": position[:, 1], "speed": speed})
-spatial_table["x_bin"] = pd.qcut(spatial_table.x, 12, duplicates="drop")
-spatial_table["y_bin"] = pd.qcut(spatial_table.y, 12, duplicates="drop")
-speed_map = spatial_table.pivot_table(index="y_bin", columns="x_bin", values="speed", observed=True)
-plt.figure(figsize=(8, 6)); sns.heatmap(speed_map, cmap="mako")
+weighted, x_edges, y_edges = np.histogram2d(position[:, 0], position[:, 1], bins=12, weights=speed)
+counts, _, _ = np.histogram2d(position[:, 0], position[:, 1], bins=[x_edges, y_edges])
+speed_map = np.divide(weighted, counts, out=np.full_like(weighted, np.nan), where=counts > 0)
+plt.figure(figsize=(8, 6)); plt.imshow(
+    speed_map.T, origin="lower", cmap="viridis", aspect="equal",
+    extent=[x_edges[0], x_edges[-1], y_edges[0], y_edges[-1]],
+)
+plt.colorbar(label="mean speed"); plt.xlabel("x"); plt.ylabel("y")
 plt.title("Mean speed by spatial bin (shortcut diagnostic)")
 plt.tight_layout(); plt.savefig(OUTPUT_DIR / "speed_by_position.png", dpi=180); plt.show()"""
     ),
@@ -246,9 +275,9 @@ for split_name, (train_idx, test_idx) in splits.items():
                 name, rep, variable, mode, split_name, train_idx, test_idx
             ))
 
-metrics = pd.DataFrame(rows)
-metrics.to_csv(OUTPUT_DIR / "layerwise_cartesian_metrics.csv", index=False)
-display(metrics.head())"""
+metrics = rows
+write_rows(OUTPUT_DIR / "layerwise_cartesian_metrics.csv", metrics)
+show_rows(metrics, limit=8)"""
     ),
     markdown(
         """## 5. Where each Cartesian variable becomes readable
@@ -264,13 +293,18 @@ The primary DINO curves use a raw frame for position, a first temporal differenc
 def plot_layer_curves(frame, split="episode_holdout", filename="readability_by_layer.png"):
     fig, axes = plt.subplots(1, 3, figsize=(17, 4.5), constrained_layout=True)
     for ax, variable in zip(axes, ["position", "velocity", "acceleration"]):
-        for (family, kind), group in frame[(frame.split == split) & (frame.variable == variable)].groupby(["family", "kind"]):
-            group = group[group["mode"] == primary_mode(family, variable)].sort_values("layer")
-            if group.empty:
+        candidates = [row for row in frame if row["split"] == split and row["variable"] == variable]
+        for (family, kind), group in grouped(candidates, ["family", "kind"]).items():
+            group = sorted(
+                [row for row in group if row["mode"] == primary_mode(family, variable)],
+                key=lambda row: row["layer"],
+            )
+            if not group:
                 continue
             label = f"{family}: {kind}"
-            ax.plot(group.layer, group.r2, marker="o", label=label)
-            ax.fill_between(group.layer, group.ci_low, group.ci_high, alpha=0.12)
+            layer = np.asarray([row["layer"] for row in group])
+            ax.plot(layer, [row["r2"] for row in group], marker="o", label=label)
+            ax.fill_between(layer, [row["ci_low"] for row in group], [row["ci_high"] for row in group], alpha=0.12)
         ax.axhline(0, color="black", lw=1)
         ax.set(title=f"{variable.title()} readability", xlabel="layer", ylabel="held-out R²")
         ax.legend(fontsize=7)
@@ -286,24 +320,36 @@ plot_layer_curves(metrics, split="spatial_holdout", filename="readability_by_lay
 This is the core shortcut check. A high raw-frame score that disappears on the spatial holdout can be explained by location. A temporal-difference score that beats the position-only baseline and survives in unseen regions is stronger evidence that representation change tracks motion."""
     ),
     code(
-        """dino_motion = metrics[
-    (metrics.family == "dino") & metrics.variable.isin(["velocity", "acceleration"])
-].copy()
-g = sns.relplot(
-    data=dino_motion, x="layer", y="r2", hue="mode", style="kind",
-    col="variable", row="split", kind="line", marker="o",
-    facet_kws={"sharey": False}, height=3.4, aspect=1.4,
-)
-g.set_axis_labels("DINO layer", "held-out R²")
-g.fig.suptitle("Raw per-frame versus temporal DINO probes", y=1.02)
-g.savefig(OUTPUT_DIR / "static_vs_temporal_dino.png", dpi=180)
-plt.show()
+        """dino_motion = [
+    row for row in metrics
+    if row["family"] == "dino" and row["variable"] in ("velocity", "acceleration")
+]
+fig, axes = plt.subplots(2, 2, figsize=(14, 8), constrained_layout=True)
+for ax, split_name, variable in zip(
+    axes.flat,
+    ["episode_holdout", "episode_holdout", "spatial_holdout", "spatial_holdout"],
+    ["velocity", "acceleration", "velocity", "acceleration"],
+):
+    candidates = [row for row in dino_motion if row["split"] == split_name and row["variable"] == variable]
+    for (mode, kind), group in grouped(candidates, ["mode", "kind"]).items():
+        group = sorted(group, key=lambda row: row["layer"])
+        ax.plot(
+            [row["layer"] for row in group], [row["r2"] for row in group],
+            marker="o", label=f"{mode}: {kind}",
+        )
+    ax.axhline(0, color="black", lw=1)
+    ax.set(title=f"{split_name}: {variable}", xlabel="DINO layer", ylabel="held-out R²")
+    ax.legend(fontsize=7)
+fig.savefig(OUTPUT_DIR / "static_vs_temporal_dino.png", dpi=180); plt.show()
 
-control_view = dino_motion[dino_motion["mode"].isin(["delta", "second_delta"])].copy()
-display(control_view.sort_values("r2", ascending=False)[[
+control_view = sorted(
+    [row for row in dino_motion if row["mode"] in ("delta", "second_delta")],
+    key=lambda row: row["r2"], reverse=True,
+)
+show_rows(control_view, [
     "split", "variable", "representation", "r2", "position_only_r2",
     "position_residual_r2", "shuffled_q95"
-]].head(20))"""
+], 20)"""
     ),
     markdown(
         """## 7. Cartesian versus polar motion
@@ -336,17 +382,20 @@ for name, rep in sorted(representations.items()):
             "variable": variable, "mode": mode, **score,
         })
 
-polar_metrics = pd.DataFrame(polar_rows)
-polar_metrics.to_csv(OUTPUT_DIR / "layerwise_polar_metrics.csv", index=False)
+polar_metrics = polar_rows
+write_rows(OUTPUT_DIR / "layerwise_polar_metrics.csv", polar_metrics)
 fig, axes = plt.subplots(2, 2, figsize=(14, 9), constrained_layout=True)
 for ax, (variable, score_key) in zip(axes.flat, [
     ("speed", "r2"), ("heading", "cosine"),
     ("acceleration_magnitude", "r2"), ("acceleration_direction", "cosine"),
 ]):
-    subset = polar_metrics[polar_metrics.variable == variable]
-    for (family, kind), group in subset.groupby(["family", "kind"]):
-        group = group.sort_values("layer")
-        ax.plot(group.layer, group[score_key], marker="o", label=f"{family}: {kind}")
+    subset = [row for row in polar_metrics if row["variable"] == variable]
+    for (family, kind), group in grouped(subset, ["family", "kind"]).items():
+        group = sorted(group, key=lambda row: row["layer"])
+        ax.plot(
+            [row["layer"] for row in group], [row[score_key] for row in group],
+            marker="o", label=f"{family}: {kind}",
+        )
     ax.axhline(0, color="black", lw=1)
     ax.set(title=variable.replace("_", " ").title(), xlabel="layer", ylabel=score_key)
     ax.legend(fontsize=7)
@@ -360,21 +409,22 @@ A conservative onset is the first of two consecutive layers whose $R^2$ exceeds 
     ),
     code(
         """onsets = []
-primary = metrics[metrics.split == "episode_holdout"].copy()
-primary = primary[
-    primary.apply(lambda row: row["mode"] == primary_mode(row["family"], row["variable"]), axis=1)
+primary = [
+    row for row in metrics
+    if row["split"] == "episode_holdout"
+    and row["mode"] == primary_mode(row["family"], row["variable"])
 ]
-for (family, kind, variable), group in primary.groupby(["family", "kind", "variable"]):
+for (family, kind, variable), group in grouped(primary, ["family", "kind", "variable"]).items():
+    best = max(group, key=lambda row: row["r2"])
     onsets.append({
         "family": family, "kind": kind, "variable": variable,
         "onset_layer": readability_onset(
-            group.to_dict("records"), "r2", "shuffled_q95", consecutive=2, fraction_of_peak=0.5
+            group, "r2", "shuffled_q95", consecutive=2, fraction_of_peak=0.5
         ),
-        "peak_r2": group.r2.max(), "peak_layer": int(group.loc[group.r2.idxmax(), "layer"]),
+        "peak_r2": best["r2"], "peak_layer": int(best["layer"]),
     })
-onset_table = pd.DataFrame(onsets)
-onset_table.to_csv(OUTPUT_DIR / "readability_onsets.csv", index=False)
-display(onset_table.sort_values(["variable", "family", "kind"]))"""
+write_rows(OUTPUT_DIR / "readability_onsets.csv", onsets)
+show_rows(sorted(onsets, key=lambda row: (row["variable"], row["family"], row["kind"])))"""
     ),
     markdown(
         """## 9. Interpretation checklist
@@ -396,8 +446,8 @@ The strongest defensible claim has the form: “Variable X becomes linearly read
         "episode_split": {"train_windows": len(episode_train), "test_windows": len(episode_test)},
         "spatial_split": spatial_config,
     },
-    "onsets": onset_table.where(pd.notna(onset_table), None).to_dict("records"),
-    "best_cartesian_rows": metrics.sort_values("r2", ascending=False).head(20).to_dict("records"),
+    "onsets": onsets,
+    "best_cartesian_rows": sorted(metrics, key=lambda row: row["r2"], reverse=True)[:20],
 }
 (OUTPUT_DIR / "summary.json").write_text(json.dumps(summary, indent=2, default=str))
 print("Wrote:")
