@@ -143,8 +143,9 @@ plt.style.use("seaborn-v0_8-whitegrid")
 def write_rows(path, rows):
     if not rows:
         return
+    fieldnames = list(dict.fromkeys(key for row in rows for key in row))
     with Path(path).open("w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader(); writer.writerows(rows)
 
 def show_rows(rows, columns=None, limit=20):
