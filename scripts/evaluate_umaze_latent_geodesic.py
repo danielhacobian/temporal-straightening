@@ -185,7 +185,7 @@ def load_encoder(checkpoint: Path, device: torch.device) -> torch.nn.Module:
 
     _ = DinoV2Encoder("dinov2_vits14", "x_norm_patchtokens")
     # Keep unused predictor/decoder payloads off the GPU; only the encoder moves.
-    payload = torch.load(checkpoint, map_location="cpu")
+    payload = torch.load(checkpoint, map_location="cpu", weights_only=False)
     if "encoder" not in payload:
         raise KeyError(f"{checkpoint} does not contain an 'encoder' entry")
     encoder = payload["encoder"].to(device)

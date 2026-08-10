@@ -1,0 +1,46 @@
+{
+  "n_states": 469,
+  "grid_spacing": 0.1,
+  "grid_bounds": [
+    0.5,
+    3.1
+  ],
+  "goal_xy_requested": [
+    1.0,
+    1.0
+  ],
+  "goal_node": [
+    5,
+    5
+  ],
+  "goal_xy_evaluated": [
+    1.0,
+    1.0
+  ],
+  "r0_checkpoint": "/opt/dlami/nvme/deuk-d011/reference/r0_direction_only/checkpoints/model_20.pth",
+  "r2_checkpoint": "/opt/dlami/nvme/deuk-d011/reference/calibrated_speed/checkpoints/model_20.pth",
+  "r0": {
+    "spearman_rho": 0.9471716804777329,
+    "p_value": 9.032381513045133e-233,
+    "bootstrap_ci_95": [
+      0.9289241906899134,
+      0.9607996762483926
+    ]
+  },
+  "r2": {
+    "spearman_rho": 0.9785800115057505,
+    "p_value": 1e-322,
+    "bootstrap_ci_95": [
+      0.9701714120125727,
+      0.9843197998701855
+    ]
+  },
+  "delta_r2_minus_r0": 0.031408331028017544,
+  "paired_bootstrap_delta_ci_95": [
+    0.022207594106054985,
+    0.0428373184129989
+  ],
+  "bootstrap_samples": 5000,
+  "seed": 20260723,
+  "device": "cuda:0"
+}
