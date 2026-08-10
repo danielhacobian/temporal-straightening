@@ -70,6 +70,13 @@ if IN_COLAB:
             "git", "clone", "--branch", REPO_BRANCH, "--single-branch",
             REPO_URL, str(COLAB_REPO),
         ], check=True)
+    else:
+        subprocess.run([
+            "git", "-C", str(COLAB_REPO), "fetch", "origin", REPO_BRANCH,
+        ], check=True)
+        subprocess.run([
+            "git", "-C", str(COLAB_REPO), "checkout", "--detach", "FETCH_HEAD",
+        ], check=True)
     os.chdir(COLAB_REPO)
 
     force_recompute = os.environ.get("UMAZE_FORCE_RECOMPUTE", "0") == "1"
