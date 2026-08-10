@@ -1,0 +1,50 @@
+{
+  "evaluation_design": {
+    "trials_per_condition": 150,
+    "chunks_per_condition": 15,
+    "trials_per_chunk": 10,
+    "seeds": [100, 200, 300],
+    "offsets": [0, 10, 20, 30, 40],
+    "success_definition": "Euclidean XY distance to goal < 0.5",
+    "distance_definition": "Euclidean distance between final and goal 4D state (XY position plus velocity)"
+  },
+  "beta_0p1_weak": {
+    "successes": 132,
+    "success_rate": 0.88,
+    "success_rate_ci95_chunk_normal": [0.8252267705291475, 0.9347732294708525],
+    "mean_state_distance": 3.2156593799591064,
+    "mean_state_distance_ci95_chunk_normal": [2.8449222006750943, 3.5863965592431186],
+    "by_seed": {
+      "100": {"success_rate": 0.9, "mean_state_distance": 2.858442449569702},
+      "200": {"success_rate": 0.94, "mean_state_distance": 3.3775321006774903},
+      "300": {"success_rate": 0.8, "mean_state_distance": 3.411003589630127}
+    }
+  },
+  "beta_10_strong": {
+    "successes": 136,
+    "success_rate": 0.9066666666666667,
+    "success_rate_ci95_chunk_normal": [0.8619445120773459, 0.9513888212559876],
+    "mean_state_distance": 3.270270077387492,
+    "mean_state_distance_ci95_chunk_normal": [2.994611877524577, 3.545928277250407],
+    "by_seed": {
+      "100": {"success_rate": 0.94, "mean_state_distance": 3.3860684871673583},
+      "200": {"success_rate": 0.88, "mean_state_distance": 3.1829256057739257},
+      "300": {"success_rate": 0.9, "mean_state_distance": 3.2418161392211915}
+    }
+  },
+  "paired_strong_minus_weak": {
+    "success_rate": {
+      "mean": 0.026666666666666675,
+      "ci95_chunk_normal": [-0.03218516234295525, 0.0855184956762886]
+    },
+    "mean_state_distance": {
+      "mean": 0.05461069742838542,
+      "ci95_chunk_normal": [-0.29025717815242447, 0.3994785730091953]
+    },
+    "strong_better_chunk_counts": {
+      "success_rate": 6,
+      "mean_state_distance_lower": 8,
+      "success_ties": 4
+    }
+  }
+}

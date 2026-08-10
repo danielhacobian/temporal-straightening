@@ -18,3 +18,11 @@ true displacement without fixing an arbitrary global latent scale.
 Training uses the same UMaze dataset, seed, architecture, 20 epochs, batch size
 32, direction weight, and optimizer settings as the existing calibrated-speed
 experiment. Only the speed weight changes.
+
+## Evaluation outputs
+
+- `geodesic_r0_vs_*`: latent/A* Spearman analyses for weak, reference, and
+  strong beta settings.
+- [`planning_metrics/README.md`](planning_metrics/README.md): the two newer
+  behavioral tests—goal success rate and final state distance—for the weak and
+  strong settings.
