@@ -52,6 +52,14 @@ and writes `activation_cache_pooled.npz`. Later executions reuse that cache and
 run the probes on CPU. Delete the cache whenever the checkpoint, dataset,
 frame spacing, or sampled windows change.
 
+If Jupyter's default kernel is not the training environment, register it once
+and select **UMaze Probe (ts)** from the notebook's kernel menu:
+
+```bash
+/path/to/training/venv/bin/python -m ipykernel install --user \
+  --name umaze-probe --display-name "UMaze Probe (ts)"
+```
+
 The notebook writes CSV tables, JSON summaries, and PNG figures under
 `baseline_artifacts/analysis/umaze_probe_walkthrough` by default.
 

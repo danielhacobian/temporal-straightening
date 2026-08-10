@@ -97,6 +97,15 @@ def grouped(rows, keys):
         key = tuple(row[name] for name in keys)
         result.setdefault(key, []).append(row)
     return result
+
+def configured_path(environment_key, *candidates):
+    if os.environ.get(environment_key):
+        return Path(os.environ[environment_key]).expanduser()
+    for candidate in candidates:
+        candidate = Path(candidate).expanduser()
+        if candidate.exists():
+            return candidate
+    return Path(candidates[0]).expanduser()
 SEED = 0
 RIDGE = 10.0
 MAX_WINDOWS = 512
@@ -105,8 +114,17 @@ FRAME_SKIP = 5
 STEP_DT = 1.0  # set to the environment seconds-per-step if physical units are needed
 BATCH_SIZE = 8
 
-CHECKPOINT = Path(os.environ.get("UMAZE_CHECKPOINT", ROOT / "baseline_artifacts/checkpoints/umaze_q1_retrain/r0_direction_only/checkpoints/model_20.pth"))
-DATA_DIR = Path(os.environ.get("UMAZE_DATA_DIR", Path.home() / "data/point_maze"))
+WORKSPACE_ROOT = ROOT.resolve().parent
+CHECKPOINT = configured_path(
+    "UMAZE_CHECKPOINT",
+    ROOT / "baseline_artifacts/checkpoints/umaze_q1_retrain/r0_direction_only/checkpoints/model_20.pth",
+    WORKSPACE_ROOT / "reference/r0_direction_only/checkpoints/model_20.pth",
+)
+DATA_DIR = configured_path(
+    "UMAZE_DATA_DIR",
+    Path.home() / "data/point_maze",
+    WORKSPACE_ROOT / "data/point_maze",
+)
 OUTPUT_DIR = Path(os.environ.get("UMAZE_PROBE_OUTPUT", ROOT / "baseline_artifacts/analysis/umaze_probe_walkthrough"))
 CACHE = Path(os.environ.get("UMAZE_ACTIVATION_CACHE", OUTPUT_DIR / "activation_cache_pooled.npz"))
 DEVICE = os.environ.get("UMAZE_DEVICE", "cuda:0")
