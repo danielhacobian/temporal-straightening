@@ -482,7 +482,11 @@ def main():
     notebook = {
         "cells": CELLS,
         "metadata": {
-            "kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
+            "kernelspec": {
+                "display_name": "UMaze Probe (ts)",
+                "language": "python",
+                "name": "umaze-probe",
+            },
             "language_info": {"name": "python", "version": "3.10"},
         },
         "nbformat": 4,
