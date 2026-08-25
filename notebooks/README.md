@@ -1,5 +1,18 @@
 # UMaze probe walkthrough
 
+## Full paper-protocol ON/OFF notebook
+
+`umaze_layerwise_motion_probe_paper_lr.ipynb` is the current full comparison.
+It clones `codex/umaze-physics-probes`, reconstructs both frozen checkpoints
+from the verified parts under
+`baseline_artifacts/checkpoints/umaze_paper_protocol_on_off`, and downloads the
+2,000-trajectory public UMaze dataset directly from OSF. It does not mount
+Google Drive, request private uploads, or require saved credentials.
+
+The OFF and ON checkpoint SHA-256 values, reconstructed provenance sidecars,
+and restoration script are checked into the same branch. A GPU Colab runtime
+can therefore run the entire notebook from the repository alone.
+
 ## Colab: credential-free walkthrough
 
 Open `umaze_layerwise_motion_probe_walkthrough.ipynb` through GitHub and choose
