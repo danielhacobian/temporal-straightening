@@ -1,13 +1,23 @@
 # PushT paper-protocol checkpoints
 
-This directory is the repository-backed checkpoint bundle for the standalone
-PushT layerwise probe notebook. The notebook compares the frozen final
-straightening-OFF and straightening-ON models on the same 18,500 public PushT
-trajectories.
+This directory records the expected checkpoint bundle for the PushT layerwise
+probe notebook. The notebook compares the frozen final straightening-OFF and
+straightening-ON models on the same 18,500 public PushT trajectories.
 
-GitHub rejects ordinary Git objects larger than 100 MB, so each checkpoint is
-stored as three numbered parts. Run `restore_checkpoints.sh` from the repository
-root to concatenate the parts and verify both reconstructed files.
+GitHub rejects ordinary Git objects larger than 100 MB. The numbered checkpoint
+parts are therefore **not currently present in this branch**. Do not describe
+this directory as a complete repository-backed bundle until the files below
+have been added through a suitable artifact host or copied into this tree:
+
+```text
+off/model_latest.pth.part-*
+on/model_latest.pth.part-*
+```
+
+Once those parts exist, run `restore_checkpoints.sh` from the repository root
+to concatenate them and verify both reconstructed files. Alternatively, set
+`PUSHT_CHECKPOINT_ROOT` in the notebook to a directory containing verified
+`off/model_latest.pth` and `on/model_latest.pth` files.
 
 Expected SHA-256 checksums:
 
