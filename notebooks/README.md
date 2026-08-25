@@ -1,4 +1,17 @@
-# UMaze probe walkthrough
+# Layerwise probe walkthroughs
+
+## PushT standalone ON/OFF notebook
+
+`pusht_layerwise_motion_probe_walkthrough_standalone.ipynb` is the full
+18,500-trajectory PushT comparison. It clones
+`codex/pusht-standalone-notebook`, restores the frozen straightening-OFF and
+straightening-ON checkpoints from
+`baseline_artifacts/checkpoints/pusht_paper_protocol_on_off`, and downloads the
+public PushT dataset directly from OSF. It does not mount Google Drive or read
+from a personal storage path. The final cell downloads a zip of the generated
+graphs and tables before the temporary Colab runtime is discarded.
+
+## UMaze probe walkthrough
 
 ## Full paper-protocol ON/OFF notebook
 

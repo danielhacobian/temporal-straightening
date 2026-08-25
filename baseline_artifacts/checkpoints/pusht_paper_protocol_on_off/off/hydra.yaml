@@ -1,0 +1,8 @@
+training:
+  epochs: 2
+  seed: 0
+  straighten: false
+  encoder_lr: 1.0e-6
+frameskip: 5
+num_hist: 3
+num_pred: 1
