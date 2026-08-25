@@ -1,0 +1,32 @@
+# Reconstructed provenance sidecar; not the original Hydra output.
+# Sources: Temporal Straightening Appendix A.2/B.2 and released conf/train.yaml.
+defaults:
+  - _self_
+  - env: point_maze
+  - encoder: dino
+  - action_encoder: proprio
+  - proprio_encoder: proprio
+  - decoder: vqvae
+  - predictor: vit
+training:
+  seed: 0
+  epochs: 20
+  batch_size: 32
+  straighten: false
+  decoder_start_epoch: 1
+  encoder_lr: 1.0e-06
+  decoder_lr: 3.0e-04
+  predictor_lr: 5.0e-04
+  action_encoder_lr: 5.0e-04
+  stop_grad: true
+  mixed_precision: bf16
+img_size: 224
+frameskip: 5
+normalize_action: true
+action_emb_dim: 10
+proprio_emb_dim: 10
+num_hist: 3
+num_pred: 1
+has_predictor: true
+has_decoder: true
+
