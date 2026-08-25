@@ -5,10 +5,11 @@
 `pusht_layerwise_motion_probe_walkthrough_standalone.ipynb` is the full
 18,500-trajectory PushT comparison. It clones
 `codex/pusht-standalone-notebook` and downloads the complete frozen OFF/ON
-activation caches from the link-shared `all_18500_trajectories` Drive folder.
+activation caches from the repository-owned `pusht-probe-cache-v1` GitHub
+Release.
 The caches contain 42 representations per condition plus states, actions,
 window identifiers, and provenance. The default path therefore refits every
-probe and regenerates every graph without a Drive mount, model checkpoint, or
+probe and regenerates every graph without Google Drive, a model checkpoint, or
 raw-video download. Set `PUSHT_FORCE_RECOMPUTE=1` only when the verified ON/OFF
 checkpoints and public OSF trajectory archive are available.
 
