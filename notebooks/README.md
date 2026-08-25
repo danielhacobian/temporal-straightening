@@ -4,13 +4,13 @@
 
 `pusht_layerwise_motion_probe_walkthrough_standalone.ipynb` is the full
 18,500-trajectory PushT comparison. It clones
-`codex/pusht-standalone-notebook` and downloads the public PushT dataset directly
-from OSF. The branch currently contains checkpoint checksums and provenance
-sidecars, but not the large checkpoint binaries. Supply a verified bundle with
-`PUSHT_CHECKPOINT_ROOT`, or add the numbered parts documented in
-`baseline_artifacts/checkpoints/pusht_paper_protocol_on_off/README.md`, before
-running the activation cells. The notebook no longer implies that the missing
-binaries are already available from GitHub.
+`codex/pusht-standalone-notebook` and downloads the complete frozen OFF/ON
+activation caches from the link-shared `all_18500_trajectories` Drive folder.
+The caches contain 42 representations per condition plus states, actions,
+window identifiers, and provenance. The default path therefore refits every
+probe and regenerates every graph without a Drive mount, model checkpoint, or
+raw-video download. Set `PUSHT_FORCE_RECOMPUTE=1` only when the verified ON/OFF
+checkpoints and public OSF trajectory archive are available.
 
 ## UMaze probe walkthrough
 
